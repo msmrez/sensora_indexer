@@ -1,0 +1,14 @@
+[project]
+name = "sensora_indexer"
+version = "0.1.0"
+description = "A real-time indexer for the Sensora IoT data marketplace."
+readme = "README.md"
+requires-python = ">=3.8"
+
+dependencies = [
+    "requests",
+    "websockets",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

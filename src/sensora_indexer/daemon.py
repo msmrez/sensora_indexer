@@ -7,9 +7,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 # Import our project modules
-import config
-import database
-import protocols
+from . import config, database, protocols
 
 # --- Logging Setup ---
 logging.basicConfig(

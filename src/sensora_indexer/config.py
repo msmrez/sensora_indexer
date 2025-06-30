@@ -1,10 +1,11 @@
-# sensora_indexer/config.py
+# src/sensora_indexer/config.py
 
 # --- DATABASE ---
 REGISTRY_DATABASE_NAME = "sensor_registry.db"
 
 # --- BITAILS API ---
-BITAILS_WEBSOCKET_URL = "https://api.bitails.io/global"
+# CORRECTED: Use wss:// for WebSocket connections
+BITAILS_WEBSOCKET_URL = "wss://api.bitails.io/global"
 BITAILS_API_BASE_URL = "https://api.bitails.io"
 
 # --- PROTOCOL ---

@@ -44,7 +44,7 @@ def process_transaction_data(tx_data: dict):
 def get_current_block_height() -> int | None:
     """Fetches the current block height from the blockchain info endpoint."""
     try:
-        url = f"{config.BITAILS_API_BASE_URL}/blockchain/info"
+        url = f"{config.BITAILS_API_BASE_URL}/block/latest"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()

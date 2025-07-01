@@ -41,6 +41,31 @@ def process_transaction_data(tx_data: dict):
                     database.upsert_sensor_advertisement(adv_data)
                     return # Stop processing other outputs
 
+def get_block_op_return_txs(height: int) -> list[dict] | None:
+    """
+    Fetches details for only the transactions containing an OP_RETURN in a given block.
+    """
+    try:
+        url = f"{config.BITAILS_API_BASE_URL}/block/height/{height}"
+        response = requests.get(url, timeout=45)
+        response.raise_for_status()
+        data = response.json()
+        
+        op_return_txs = []
+        if 'transactionsDetails' in data and isinstance(data['transactionsDetails'], list):
+            for tx_detail in data['transactionsDetails']:
+                if 'op_return' in tx_detail.get('tags', []):
+                    # This transaction has an OP_RETURN, add its txid for full fetching.
+                    if tx_detail.get('txid'):
+                        op_return_txs.append(tx_detail.get('txid'))
+            return op_return_txs
+
+        logger.error(f"Could not find 'transactionsDetails' list in block response for height {height}")
+        return None
+    except Exception as e:
+        logger.exception(f"Failed to get and filter block content for height {height}: {e}")
+        return None
+
 def get_current_block_height() -> int | None:
     """Fetches the current block height from the blockchain info endpoint."""
     try:
@@ -87,7 +112,7 @@ def get_full_transaction(txid: str) -> dict | None:
 
 def main_loop():
     """The main polling loop for the indexer daemon."""
-    logger.info("--- Starting Sensōra Indexer Daemon (Polling Mode) ---")
+    logger.info("--- Starting Sensōra Indexer Daemon (Optimized Polling Mode) ---")
     database.init_registry_db()
 
     last_processed_str = database.get_indexer_state('last_processed_block_height')
@@ -113,21 +138,27 @@ def main_loop():
 
             if last_processed_height >= current_height:
                 logger.info(f"Caught up to current block height ({current_height}). Waiting for new blocks...")
-                time.sleep(60) # Wait for a minute before checking again
+                time.sleep(60)
                 continue
 
-            # Process blocks from the last known height up to the current height
             for target_height in range(last_processed_height + 1, current_height + 1):
                 logger.info(f"Processing block {target_height}...")
                 
-                txids = get_block_txids(target_height)
-                if txids:
-                    logger.info(f"Found {len(txids)} transactions in block {target_height}.")
-                    for i, txid in enumerate(txids):
-                        logger.debug(f"Processing tx {i+1}/{len(txids)}: {txid}")
-                        tx_data = get_full_transaction(txid)
-                        if tx_data:
-                            process_transaction_data(tx_data)
+                # --- START OPTIMIZATION ---
+                # Get only the TXIDs of transactions that have an OP_RETURN
+                op_return_txids = get_block_op_return_txs(target_height)
+                
+                if op_return_txids is not None: # Check for None in case of API error
+                    if not op_return_txids:
+                        logger.info(f"No transactions with OP_RETURN found in block {target_height}.")
+                    else:
+                        logger.info(f"Found {len(op_return_txids)} transactions with OP_RETURN in block {target_height}. Fetching details...")
+                        for i, txid in enumerate(op_return_txids):
+                            logger.debug(f"Processing OP_RETURN tx {i+1}/{len(op_return_txids)}: {txid}")
+                            tx_data = get_full_transaction(txid)
+                            if tx_data:
+                                process_transaction_data(tx_data)
+                # --- END OPTIMIZATION ---
                 
                 last_processed_height = target_height
                 database.set_indexer_state('last_processed_block_height', str(last_processed_height))

@@ -17,13 +17,14 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+# Silence noisy library logs unless we are debugging them specifically
 logging.getLogger('socketio').setLevel(logging.WARNING)
 logging.getLogger('engineio').setLevel(logging.WARNING)
 
 # --- Create a Socket.IO Client Instance ---
 sio = socketio.Client(
     reconnection=True,
-    reconnection_attempts=0, # Infinite
+    reconnection_attempts=0, # Infinite retries
     reconnection_delay=5,
     reconnection_delay_max=60,
 )
@@ -32,50 +33,43 @@ sio = socketio.Client(
 
 @sio.event(namespace="/global")
 def connect():
-    """
-    Called upon successful connection to the namespace.
-    We will now attempt to join the mempool room.
-    """
-    logger.info(f"Socket.IO connection established! (sid: {sio.sid})")
-    logger.info("Attempting to subscribe to the 'mempool' room...")
-    try:
-        # 'join' is a common event name for subscribing to rooms/channels
-        sio.emit('join', 'mempool', namespace="/global")
-        logger.info("Sent 'join mempool' subscription request.")
-    except Exception as e:
-        logger.exception(f"Error sending subscription request: {e}")
+    """Called upon successful connection to the namespace."""
+    logger.info(f"Socket.IO connection to '/global' namespace established (sid: {sio.sid}). Listening for events.")
+    # We send NO subscription message, just like the JavaScript example.
 
 @sio.event(namespace="/global")
 def connect_error(data):
-    logger.error(f"Socket.IO connection failed! Data: {data}")
+    logger.error(f"Failed to connect to '/global' namespace. Data: {data}")
 
 @sio.event(namespace="/global")
 def disconnect():
-    logger.warning("Socket.IO disconnected. The client will attempt to reconnect automatically.")
+    logger.warning("Disconnected from '/global' namespace. Reconnecting...")
 
 @sio.on('tx', namespace="/global")
 def on_tx(data):
     """
-    This handler should now be triggered if our 'join mempool' subscription works.
+    This handler is called for 'tx' events on the '/global' namespace.
     """
-    logger.debug(f"Received 'tx' event data: {json.dumps(data)}")
+    # Use DEBUG level for noisy events, INFO for significant ones.
+    logger.debug(f"Received 'tx' event.")
     try:
-        # Before full processing, do a quick string check for our prefix
+        # Client-side filter to only process relevant transactions
         raw_message = json.dumps(data)
-        if config.ADVERTISEMENT_PREFIX.hex() not in raw_message:
-            return # Discard silently if it's not ours
-        
-        # If we passed the filter, it's worth processing
-        logger.info("Potential advertisement transaction received. Processing...")
-        process_transaction(data)
+        if config.ADVERTISEMENT_PREFIX.hex() in raw_message:
+            logger.info("Potential advertisement transaction received. Processing...")
+            logger.debug(f"Filtered TX Data: {raw_message}")
+            process_transaction(data)
     except Exception as e:
-        logger.exception(f"Error processing 'tx' event: {e}")
+        logger.exception(f"Error in 'tx' handler: {e}")
 
 def process_transaction(tx_data: dict):
-    # ... (This function remains the same robust version as before) ...
+    """
+    Processes a single transaction dictionary.
+    """
     tx_content = tx_data.get('tx', tx_data)
     txid = tx_content.get('h') or tx_content.get('txid')
     if not txid: return
+
     outputs = tx_content.get('out') or tx_content.get('outputs', [])
     if not outputs: return
 
@@ -97,7 +91,7 @@ def process_transaction(tx_data: dict):
 
 # --- Main Daemon Function ---
 def main():
-    logger.info("--- Starting Sensōra Indexer Daemon (Socket.IO Real-Time Mode) ---")
+    logger.info("--- Starting Sensōra Indexer Daemon ---")
     database.init_registry_db()
     
     while True:
@@ -109,7 +103,7 @@ def main():
         except socketio.exceptions.ConnectionError as e:
             logger.error(f"Connection error: {e}")
         except Exception as e:
-            logger.exception(f"Unhandled exception in daemon main loop: {e}")
+            logger.exception(f"Unhandled exception in main loop: {e}")
         
         if sio.connected:
             sio.disconnect()

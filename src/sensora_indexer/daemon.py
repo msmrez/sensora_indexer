@@ -4,12 +4,15 @@ import json
 import logging
 import time
 import socketio
-from . import database, protocols, config
+
+# Import our project modules
+from . import config
+from . import database
+from . import protocols
 
 # --- Logging Setup ---
-# SET THE LEVEL TO INFO TO REDUCE NOISE NOW
 logging.basicConfig(
-    level=logging.INFO, # <--- Changed back to INFO
+    level=logging.INFO, # Kept at INFO to avoid noise from non-matching TXs
     format='%(asctime)s - %(levelname)s - [%(name)s] %(module)s.%(funcName)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -23,40 +26,14 @@ sio = socketio.Client(
     reconnection_attempts=0,
     reconnection_delay=5,
     reconnection_delay_max=60,
-    # logger=True, # You can disable the verbose socketio logs now
-    # engineio_logger=True
 )
 
 # --- Socket.IO Event Handlers for namespace '/global' ---
 
 @sio.event(namespace="/global")
 def connect():
-    logger.info(f"Connected to Bitails (sid: {sio.sid}). Subscribing to filtered transactions...")
-    try:
-        # Define the query to filter for our specific OP_RETURN prefix
-        # This asks the server to do the filtering for us.
-        subscription_query = {
-            "v": 3,
-            "q": {
-                "find": {
-                    # This is a query for outputs where the hex script 's2'
-                    # contains our advertisement prefix.
-                    # This is less efficient than a regex but might be more stable.
-                    # NOTE: This query syntax is an educated guess based on common APIs.
-                    # It might need to be adjusted if it doesn't work.
-                    "out.s2": { "$gte": f"6a{config.ADVERTISEMENT_PREFIX.hex()}" }
-                },
-                "project": {"tx.h": 1, "out": 1, "_id": 0}
-            }
-        }
-        
-        # In many Socket.IO APIs, you emit a message to join a "room" or set a "filter".
-        # Let's try emitting a 'q' event with our query.
-        sio.emit('q', subscription_query, namespace="/global")
-        logger.info("Subscription query sent.")
-        
-    except Exception as e:
-        logger.exception(f"Error during subscription: {e}")
+    logger.info(f"Connected to Bitails (sid: {sio.sid}). Listening for all mempool transactions.")
+    # No subscription query is sent. We will filter client-side.
 
 @sio.event(namespace="/global")
 def connect_error(data):
@@ -68,23 +45,37 @@ def disconnect():
 
 @sio.on("tx", namespace="/global")
 def on_tx(data):
-    logger.info("Received filtered 'tx' event, processing...")
+    """
+    This event handler is called for EVERY transaction.
+    We will perform a quick client-side filter before deep processing.
+    """
     try:
+        # --- START CLIENT-SIDE FILTER ---
+        # Convert the incoming data to a string for a quick substring check.
+        # This is very fast and avoids full JSON parsing for every single transaction.
+        raw_message = json.dumps(data)
+        
+        # We are looking for our advertisement prefix in hex format.
+        if config.ADVERTISEMENT_PREFIX.hex() not in raw_message:
+            # If the prefix isn't in the raw message, discard it immediately.
+            return 
+        # --- END CLIENT-SIDE FILTER ---
+
+        # If we passed the filter, it's likely our transaction. Now we process it fully.
+        logger.info("Potential advertisement transaction received. Processing...")
+        logger.debug(f"Filtered TX Data: {raw_message}") # Log the data for debug if needed
         process_transaction(data)
+
     except Exception as e:
         logger.exception(f"Error in 'tx' handler: {e}")
 
-# The catch-all is less necessary now that we're filtering, but can be kept for debug
-# @sio.on("*", namespace="/global")
-# def catch_all(event, data):
-#     logger.debug(f"Caught event '{event}' with data: {json.dumps(data, indent=2)}")
-
 def process_transaction(tx_data: dict):
-    # This function remains the same, as it's designed to be robust.
+    """
+    Processes a single transaction dictionary that has already been pre-filtered.
+    """
     tx_content = tx_data.get("tx", tx_data)
     txid = tx_content.get("h") or tx_content.get("txid")
     if not txid:
-        logger.debug(f"No txid in: {tx_data}")
         return
 
     outputs = tx_content.get("out") or tx_content.get("outputs", [])
@@ -100,14 +91,13 @@ def process_transaction(tx_data: dict):
             if op_return_data:
                 adv_data = protocols.parse_advertisement_payload(op_return_data)
                 if adv_data:
-                    logger.info(f"Advertisement found! TXID: {txid}, Sensor: {adv_data.get('device_id')}")
+                    logger.info(f"Advertisement found and VERIFIED! TXID: {txid}, Sensor: {adv_data.get('device_id')}")
                     adv_data["txid"] = txid
                     database.upsert_sensor_advertisement(adv_data)
                     return
 
 # --- Main Daemon Entry Point ---
 def main():
-    # This main loop remains the same
     logger.info("--- Starting Sensōra Indexer Daemon ---")
     database.init_registry_db()
     while True:

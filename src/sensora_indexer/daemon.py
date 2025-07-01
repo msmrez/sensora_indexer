@@ -12,7 +12,7 @@ from . import protocols
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO, # Kept at INFO to avoid noise from non-matching TXs
+    level=logging.DEBUG, # Kept at INFO to avoid noise from non-matching TXs
     format='%(asctime)s - %(levelname)s - [%(name)s] %(module)s.%(funcName)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -49,6 +49,13 @@ def on_tx(data):
     This event handler is called for EVERY transaction.
     We will perform a quick client-side filter before deep processing.
     """
+    logger.debug(f"RAW 'tx' EVENT DATA RECEIVED: {json.dumps(data, indent=2)}")
+        try:
+        process_transaction(data)
+    except Exception as e:
+        logger.exception(f"Error processing 'tx' event during debug: {e}")
+
+        
     try:
         # --- START CLIENT-SIDE FILTER ---
         # Convert the incoming data to a string for a quick substring check.

@@ -87,7 +87,7 @@ def parse_advertisement_payload(payload: bytes) -> dict | None:
             services.append({"data_type": data_type, "price_sats": price_sats})
 
         # Timestamp (8 bytes)
-        timestamp, = struct.unpack_from('>Q', payload, offset)
+        timestamp, = struct.unpack_from('>I', payload, offset)
 
         return {
             "protocol": "SNSRADV1",

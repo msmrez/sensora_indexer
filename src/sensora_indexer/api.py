@@ -41,7 +41,9 @@ def get_api_status():
 @app.route("/api/v1/sensors", methods=['GET'])
 def list_all_sensors():
     """Lists all recently active and online sensors."""
-    sensors = db.find_sensors()
+    logger.info("API endpoint /api/v1/sensors hit!")
+    sensors = db.find_sensors() # This now calls our simplified function
+    logger.info(f"Database query returned {len(sensors)} sensors.")
     return jsonify(sensors)
 
 @app.route("/api/v1/sensor/<string:device_id>", methods=['GET'])

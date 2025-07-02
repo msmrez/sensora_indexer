@@ -45,8 +45,38 @@ def get_sensor_details(device_id: str) -> dict | None:
             conn.close()
             
     return sensor_profile
-
-def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, limit: int = 100) -> list:
+def find_sensors(limit: int = 100) -> list:
+    """
+    DEBUGGING VERSION: Finds all sensors without any filtering.
+    """
+    sensors_found = []
+    conn = None
+    try:
+        conn = get_registry_db_connection()
+        cursor = conn.cursor()
+        
+        # --- TEMPORARY SIMPLIFIED QUERY ---
+        query = "SELECT * FROM sensors ORDER BY last_adv_timestamp DESC LIMIT ?"
+        params = (limit,)
+        
+        logger.debug(f"Executing simple sensor search query: {query}")
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        
+        logger.info(f"Found {len(rows)} sensor(s) in the database.")
+        
+        for row in rows:
+            sensors_found.append(dict(row))
+            
+    except Exception as e:
+        logger.exception(f"Error finding sensors: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+            
+    return sensors_found
     """Finds sensors, optionally filtering by data_type and/or geohash prefix."""
     sensors_found = []
     conn = None

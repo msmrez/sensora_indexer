@@ -5,19 +5,24 @@ import json
 import time
 from flask import Flask, jsonify, request, abort, render_template
 from werkzeug.exceptions import HTTPException
+
 # Import our project modules
-from . import api_database as db # Use the aliased db for clarity
+from . import api_database as db
 from . import config
 
 # --- Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - [%(name)s] - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 # --- Flask App Creation ---
-app = Flask(__name__)
+# The template_folder is specified relative to the app's root path.
+# When run as a module, this should resolve correctly if templates is in the same dir as api.py's package.
+# A more robust way is to set it relative to the app's instance path.
+app = Flask(__name__, template_folder='templates')
+
 
 # --- Error Handlers ---
 @app.errorhandler(HTTPException)
@@ -32,24 +37,32 @@ def handle_exception(e):
     response.content_type = "application/json"
     return response
 
-# --- API Routes ---
+
+# --- HTML Dashboard Route ---
 @app.route("/", methods=['GET'])
 def index_dashboard():
     """Serves the main HTML dashboard page for the registry."""
-    # Fetch all sensors to display on the page
-    # The find_sensors function already gets all necessary data
-    all_sensors = db.find_sensors(limit=50) # Get latest 50 sensors
-    
-    # We need to fetch the services for each sensor
-    for sensor in all_sensors:
-        details = db.get_sensor_details(sensor['device_id'])
-        sensor['services_offered'] = details.get('services_offered', [])
+    logger.info("Request received for index dashboard.")
+    all_sensors = []
+    try:
+        # Fetch latest 50 sensors to display
+        all_sensors = db.find_sensors(limit=50) 
+        
+        # For each sensor, get its detailed services list
+        for sensor in all_sensors:
+            details = db.get_sensor_details(sensor['device_id'])
+            sensor['services_offered'] = details.get('services_offered', []) if details else []
+
+    except Exception as e:
+        logger.exception("Error preparing data for dashboard.")
 
     return render_template(
         "index.html",
         sensors=all_sensors,
         time=time # Pass time module for formatting timestamps in the template
     )
+
+# --- API Routes ---
 
 @app.route("/api/v1/status", methods=['GET'])
 def get_api_status():
@@ -59,9 +72,7 @@ def get_api_status():
 @app.route("/api/v1/sensors", methods=['GET'])
 def list_all_sensors():
     """Lists all recently active and online sensors."""
-    logger.info("API endpoint /api/v1/sensors hit!")
-    sensors = db.find_sensors() # This now calls our simplified function
-    logger.info(f"Database query returned {len(sensors)} sensors.")
+    sensors = db.find_sensors()
     return jsonify(sensors)
 
 @app.route("/api/v1/sensor/<string:device_id>", methods=['GET'])
@@ -78,7 +89,6 @@ def search_sensors():
     Searches for sensors based on query parameters.
     e.g., /search?data_type=1&geo_prefix=u4p
     """
-    # Get query parameters
     data_type_str = request.args.get('data_type')
     geo_prefix = request.args.get('geo_prefix')
     
@@ -99,9 +109,8 @@ def main():
     """Main entry point to run the API server."""
     logger.info("--- Starting Sensōra Registry API Server ---")
     # For production, use a proper WSGI server like Gunicorn or Waitress
-     app.template_folder = 'templates'
-    # Example: gunicorn -w 4 -b '[::]:8081' 'sensora_indexer.api:app'
     app.run(host="::", port=8081, debug=False)
 
+# This block allows running the Flask app directly
 if __name__ == "__main__":
     main()

@@ -1,7 +1,13 @@
-# src/sensora_indexer/config.py
+import os
+
+# --- PROJECT ROOT ---
+# This finds the root directory of the project (e.g., /root/sensora-indexer/)
+# It assumes the src directory is in the project root.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # --- DATABASE ---
-REGISTRY_DATABASE_NAME = "sensor_registry.db"
+# Define the database path relative to the project root.
+REGISTRY_DATABASE_NAME = os.path.join(PROJECT_ROOT, "sensor_registry.db")
 
 # --- BITAILS API ---
 # CORRECTED: Use wss:// for WebSocket connections

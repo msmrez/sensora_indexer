@@ -2,7 +2,8 @@
 
 import logging
 import json
-from flask import Flask, jsonify, request, abort
+import time
+from flask import Flask, jsonify, request, abort, render_template
 from werkzeug.exceptions import HTTPException
 # Import our project modules
 from . import api_database as db # Use the aliased db for clarity
@@ -32,6 +33,23 @@ def handle_exception(e):
     return response
 
 # --- API Routes ---
+@app.route("/", methods=['GET'])
+def index_dashboard():
+    """Serves the main HTML dashboard page for the registry."""
+    # Fetch all sensors to display on the page
+    # The find_sensors function already gets all necessary data
+    all_sensors = db.find_sensors(limit=50) # Get latest 50 sensors
+    
+    # We need to fetch the services for each sensor
+    for sensor in all_sensors:
+        details = db.get_sensor_details(sensor['device_id'])
+        sensor['services_offered'] = details.get('services_offered', [])
+
+    return render_template(
+        "index.html",
+        sensors=all_sensors,
+        time=time # Pass time module for formatting timestamps in the template
+    )
 
 @app.route("/api/v1/status", methods=['GET'])
 def get_api_status():
@@ -81,6 +99,7 @@ def main():
     """Main entry point to run the API server."""
     logger.info("--- Starting Sensōra Registry API Server ---")
     # For production, use a proper WSGI server like Gunicorn or Waitress
+     app.template_folder = 'templates'
     # Example: gunicorn -w 4 -b '[::]:8081' 'sensora_indexer.api:app'
     app.run(host="::", port=8081, debug=False)
 

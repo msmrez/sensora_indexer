@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensōra - IoT Sensor Registry</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; color: #1c1e21; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 3em; color: #0056b3; margin-bottom: 10px; }
+        header p { font-size: 1.2em; color: #606770; }
+        .sensor-card { background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; padding: 20px; transition: box-shadow 0.3s ease; }
+        .sensor-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .sensor-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e9ecef; padding-bottom: 15px; margin-bottom: 15px; }
+        .sensor-header h2 { margin: 0; font-size: 1.5em; color: #1d2129; }
+        .status-online { color: #31a24c; font-weight: bold; }
+        .sensor-details { display: grid; grid-template-columns: 1fr 2fr; gap: 8px 15px; font-size: 0.95em;}
+        .sensor-details dt { font-weight: 600; color: #606770; }
+        .sensor-details dd { margin: 0; }
+        .code { font-family: Menlo, Monaco, Consolas, "Courier New", monospace; background-color: #f0f2f5; padding: 3px 6px; border-radius: 4px; font-size: 0.9em; word-break: break-all;}
+        a { color: #0c66ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footer { text-align: center; margin-top: 40px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Sensōra Sensor Registry</h1>
+            <p>A decentralized, on-chain registry of active IoT data sensors.</p>
+        </header>
+
+        <!-- Waterfall of sensors -->
+        {% for sensor in sensors %}
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <h2>Sensor: <span class="code">{{ sensor.device_id[:21] }}...</span></h2>
+                    <span class="status-online">● Online</span>
+                </div>
+                <dl class="sensor-details">
+                    <dt>Full IPv6:</dt>
+                    <dd><span class="code">{{ sensor.ipv6_address }}</span>:{{ sensor.port }}</dd>
+
+                    <dt>Location (Geohash):</dt>
+                    <dd>{{ sensor.geohash or 'Not Provided' }}</dd>
+
+                    <dt>Services Offered:</dt>
+                    <dd>
+                        {% for service in sensor.services_offered %}
+                            Data Type <strong>{{ service.data_type_code }}</strong> at <strong>{{ service.price_sats }} sats</strong><br>
+                        {% else %}
+                            No services listed.
+                        {% endfor %}
+                    </dd>
+                    
+                    <dt>Last Advertisement:</dt>
+                    <dd>{{ time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(sensor.last_adv_timestamp)) }} UTC</dd>
+
+                    <dt>Proof (TXID):</dt>
+                    <dd><a href="https://bitails.io/tx/{{ sensor.last_adv_txid }}" target="_blank" class="code">{{ sensor.last_adv_txid[:20] }}...</a></dd>
+                </dl>
+            </div>
+        {% else %}
+            <p style="text-align: center;">No active sensors found in the registry. The indexer might be warming up.</p>
+        {% endfor %}
+
+        <footer class="footer">
+            <p>This registry is automatically populated by the Sensōra Indexer Daemon scanning the BSV blockchain.</p>
+        </footer>
+    </div>
+</body>
+</html>

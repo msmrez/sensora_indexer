@@ -1,9 +1,9 @@
 # sensora_indexer/src/sensora_indexer/api.py
 
 import logging
+import json
 from flask import Flask, jsonify, request, abort
 from werkzeug.exceptions import HTTPException
-
 # Import our project modules
 from . import api_database as db # Use the aliased db for clarity
 from . import config

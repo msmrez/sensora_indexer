@@ -115,11 +115,25 @@ def main_loop():
     logger.info("--- Starting Sensōra Indexer Daemon (Optimized Polling Mode) ---")
     database.init_registry_db()
 
-    last_processed_str = database.get_indexer_state('last_processed_block_height')
-    last_processed_height = int(last_processed_str) if last_processed_str else 0
 
+    # 1. Get the last processed block from our DB
+    last_processed_str = database.get_indexer_state('last_processed_block_height')
+    last_processed_height = 0
+    if last_processed_str:
+        try:
+            last_processed_height = int(last_processed_str)
+            logger.info(f"Found last processed block height in DB: {last_processed_height}")
+            # To handle potential reorgs, re-process the last 15 blocks
+            reorg_safety_margin = 15
+            last_processed_height = max(0, last_processed_height - reorg_safety_margin)
+            logger.info(f"Rolling back {reorg_safety_margin} blocks for safety. Starting scan from block {last_processed_height}.")
+        except (ValueError, TypeError):
+            logger.warning("Invalid value for 'last_processed_block_height' in DB. Starting from scratch.")
+            last_processed_height = 0
+
+    # 2. If DB is empty, start from a recent point in the chain
     if last_processed_height == 0:
-        logger.info("No last processed block found. Starting from recent history.")
+        logger.info("No valid last processed block found. Starting from a recent point in the chain.")
         current_height = get_current_block_height()
         if current_height:
             last_processed_height = current_height - config.BACKFILL_BLOCK_COUNT

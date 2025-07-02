@@ -43,7 +43,56 @@ def get_sensor_details(device_id: str) -> dict | None:
         if conn:
             conn.close()
 
+
 def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, limit: int = 100) -> list:
+    """Finds sensors, optionally filtering by data_type and/or geohash prefix."""
+    sensors_found = []
+    conn = None
+    try:
+        conn = get_registry_db_connection()
+        cursor = conn.cursor()
+        
+        # --- START CORRECTION: Select all necessary columns ---
+        base_query = "SELECT DISTINCT s.device_id, s.ipv6_address, s.port, s.geohash, s.last_adv_timestamp, s.last_adv_txid, s.is_online FROM sensors s"
+        # --- END CORRECTION ---
+
+        conditions = ["s.is_online = 1"]
+        params = []
+        
+        if data_type is not None:
+            base_query += " JOIN services svc ON s.device_id = svc.device_id"
+            conditions.append("svc.data_type_code = ?")
+            params.append(data_type)
+        
+        if geo_prefix:
+            conditions.append("s.geohash LIKE ?")
+            params.append(f"{geo_prefix}%")
+        
+        query = base_query
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+            
+        query += " ORDER BY s.last_adv_timestamp DESC LIMIT ?"
+        params.append(limit)
+        
+        logger.debug(f"Executing sensor search query: {query} with params: {tuple(params)}")
+        
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        
+        logger.info(f"Database query found {len(rows)} matching sensors.")
+        
+        for row in rows:
+            sensors_found.append(dict(row))
+            
+    except Exception as e:
+        logger.exception(f"Error finding sensors with query: {query}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+            
+    return sensors_found
     """Finds sensors, optionally filtering by data_type and/or geohash prefix."""
     sensors_found = []
     conn = None

@@ -30,18 +30,25 @@ def process_transaction_data(tx_data: dict):
     outputs = tx_data.get('outputs', [])
     for output in outputs:
         script_hex = output.get('script')
-        if not script_hex: continue
+        if not script_hex or not (script_hex.startswith("006a") or script_hex.startswith("6a")):
+            continue
         
-        if script_hex.startswith("006a") or script_hex.startswith("6a"):
-            op_return_data = protocols.parse_op_return_from_script_hex(script_hex)
-            if op_return_data:
-                adv_data = protocols.parse_advertisement_payload(op_return_data)
-                if adv_data:
-                    logger.info(f"Advertisement found in block! TXID: {txid}, Sensor: {adv_data.get('device_id')}")
-                    adv_data['txid'] = txid
-                    database.upsert_sensor_advertisement(adv_data)
-                    return # Stop processing other outputs
+        # --- START FINAL CORRECTION ---
+        # We need to parse all pushes, not just the first one.
+        all_pushes = protocols.get_all_op_return_pushes(script_hex)
+        if not all_pushes or not isinstance(all_pushes, list):
+            continue
 
+        # Check if the FIRST push is our advertisement prefix.
+        if all_pushes[0] == config.ADVERTISEMENT_PREFIX:
+            logger.info(f"Potential advertisement found! TXID: {txid}. Parsing full payload...")
+            # We now need a parser that takes the LIST of pushes.
+            adv_data = protocols.parse_advertisement_from_pushes(all_pushes)
+            if adv_data:
+                logger.info(f"Advertisement VERIFIED! Sensor: {adv_data.get('device_id')}")
+                adv_data['txid'] = txid
+                database.upsert_sensor_advertisement(adv_data)
+                return # Stop processing this transaction
 def get_block_op_return_txs(height: int) -> list[dict] | None:
     """
     Fetches details for only the transactions containing an OP_RETURN in a given block.

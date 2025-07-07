@@ -4,7 +4,7 @@ import sqlite3
 import logging
 import json
 from . import config
-
+import os
 logger = logging.getLogger(__name__)
 
 def get_registry_db_connection():
@@ -21,7 +21,7 @@ def get_registry_db_connection():
     except sqlite3.Error as e:
         logger.exception(f"DB_ERROR: Could not connect to database '{config.REGISTRY_DATABASE_NAME}': {e}")
         return None
-        
+
 def init_registry_db():
     """Initializes the database and creates tables if they don't exist."""
     conn = None

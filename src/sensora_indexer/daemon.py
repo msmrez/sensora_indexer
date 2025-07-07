@@ -110,6 +110,70 @@ def get_full_transaction(txid: str) -> dict | None:
         logger.exception(f"Failed to get full transaction details for txid {txid}: {e}")
         return None
 
+# In sensora_indexer/src/sensora_indexer/daemon.py
+# Add 'threading' to your imports
+
+# --- NEW HEARTBEAT WORKER LOGIC ---
+def heartbeat_worker():
+    """
+    Periodically checks the online status and reputation of all known sensors.
+    """
+    logger.info("Heartbeat worker thread started.")
+    while True:
+        try:
+            logger.info("Starting heartbeat check cycle...")
+            conn = database.get_registry_db_connection()
+            sensors_to_check = conn.execute("SELECT device_id, ipv6_address, port FROM sensors").fetchall()
+            conn.close()
+            
+            logger.info(f"Checking status for {len(sensors_to_check)} sensors.")
+            
+            for sensor in sensors_to_check:
+                sensor_dict = dict(sensor)
+                device_id = sensor_dict['device_id']
+                url = f"http://[{sensor_dict['ipv6_address']}]:{sensor_dict['port']}/status"
+                
+                try:
+                    # Very short timeout, we don't want to wait long for offline sensors
+                    response = requests.get(url, timeout=5)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    # We got a successful response, update the DB with online status and metrics
+                    if data.get('status') == 'online':
+                        database.update_sensor_reputation(device_id, True, data.get('reputation'))
+                    else:
+                        database.update_sensor_reputation(device_id, False, None)
+
+                except requests.exceptions.RequestException as e:
+                    # Any network error (timeout, connection refused) means it's offline
+                    logger.warning(f"Heartbeat failed for sensor {device_id}: {e}")
+                    database.update_sensor_reputation(device_id, False, None)
+
+        except Exception as e:
+            logger.exception(f"An error occurred in the heartbeat_worker loop: {e}")
+        
+        # Wait for a long interval before the next full check cycle
+        logger.info(f"Heartbeat cycle complete. Next check in {3600} seconds.")
+        time.sleep(3600) # Check all sensors once per hour
+
+# In the main() function, start this new thread
+def main_loop():
+    # ... (the existing main_loop code)
+    pass
+
+if __name__ == "__main__":
+    logger.info("--- Starting Sensōra Indexer Daemon ---")
+    database.init_registry_db()
+
+    # Start the heartbeat worker in its own thread
+    heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True, name="HeartbeatThread")
+    heartbeat_thread.start()
+    
+    # Start the main block polling loop
+    # This will now run in the main thread
+    main_loop()
+
 def main_loop():
     """The main polling loop for the indexer daemon."""
     logger.info("--- Starting Sensōra Indexer Daemon (Optimized Polling Mode) ---")

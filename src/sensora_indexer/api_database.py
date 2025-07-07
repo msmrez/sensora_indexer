@@ -44,16 +44,18 @@ def get_sensor_details(device_id: str) -> dict | None:
             conn.close()
 
 
-def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, limit: int = 100) -> list:
-    """Finds sensors, optionally filtering by data_type and/or geohash prefix."""
+def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, limit: int = 100, sort_by: str = 'timestamp') -> list:
+    """
+    Finds sensors, with optional filtering and sorting.
+    """
     sensors_found = []
     conn = None
     try:
         conn = get_registry_db_connection()
         cursor = conn.cursor()
         
-        # --- START CORRECTION: Select all necessary columns ---
-        base_query = "SELECT DISTINCT s.device_id, s.ipv6_address, s.port, s.geohash, s.last_adv_timestamp, s.last_adv_txid, s.is_online FROM sensors s"
+        # --- START CORRECTION: Add reputation columns to the SELECT statement ---
+        base_query = "SELECT DISTINCT s.device_id, s.ipv6_address, s.port, s.geohash, s.last_adv_timestamp, s.last_adv_txid, s.is_online, s.uptime_percentage, s.stamp_success_rate, s.total_stamps FROM sensors s"
         # --- END CORRECTION ---
 
         conditions = ["s.is_online = 1"]
@@ -72,68 +74,20 @@ def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, li
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
             
-        query += " ORDER BY s.last_adv_timestamp DESC LIMIT ?"
+        # --- Add sorting logic ---
+        if sort_by == 'reputation':
+            # A simple reputation score: uptime * success rate
+            query += " ORDER BY (s.uptime_percentage * s.stamp_success_rate) DESC, s.last_adv_timestamp DESC"
+        else: # Default sort by most recently seen
+            query += " ORDER BY s.last_adv_timestamp DESC"
+        
+        query += " LIMIT ?"
         params.append(limit)
         
         logger.debug(f"Executing sensor search query: {query} with params: {tuple(params)}")
-        
         cursor.execute(query, tuple(params))
-        rows = cursor.fetchall()
         
-        logger.info(f"Database query found {len(rows)} matching sensors.")
-        
-        for row in rows:
-            sensors_found.append(dict(row))
-            
-    except Exception as e:
-        logger.exception(f"Error finding sensors with query: {query}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-            
-    return sensors_found
-    """Finds sensors, optionally filtering by data_type and/or geohash prefix."""
-    sensors_found = []
-    conn = None
-    try:
-        conn = get_registry_db_connection()
-        cursor = conn.cursor()
-        
-        # --- START CORRECTION: More robust dynamic query ---
-        
-        base_query = "SELECT DISTINCT s.device_id, s.ipv6_address, s.port, s.geohash, s.last_adv_timestamp FROM sensors s"
-        conditions = ["s.is_online = 1"]
-        params = []
-        
-        if data_type is not None:
-            # We need to join with the services table to filter by data type
-            base_query += " JOIN services svc ON s.device_id = svc.device_id"
-            conditions.append("svc.data_type_code = ?")
-            params.append(data_type)
-        
-        if geo_prefix:
-            conditions.append("s.geohash LIKE ?")
-            params.append(f"{geo_prefix}%")
-        
-        # Build the final query
-        query = base_query
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-            
-        query += " ORDER BY s.last_adv_timestamp DESC LIMIT ?"
-        params.append(limit)
-        
-        # --- END CORRECTION ---
-        
-        logger.debug(f"Executing sensor search query: {query} with params: {tuple(params)}")
-        
-        cursor.execute(query, tuple(params))
-        rows = cursor.fetchall()
-        
-        logger.info(f"Database query found {len(rows)} matching sensors.")
-        
-        for row in rows:
+        for row in cursor.fetchall():
             sensors_found.append(dict(row))
             
     except Exception as e:

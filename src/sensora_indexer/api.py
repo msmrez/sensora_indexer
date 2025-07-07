@@ -38,30 +38,39 @@ def handle_exception(e):
     return response
 
 
-# --- HTML Dashboard Route ---
+
+@app.route("/api/v1/sensors/search", methods=['GET'])
+def search_sensors():
+    """
+    Searches for sensors, now with sorting by reputation.
+    e.g., /search?data_type=1&sort=reputation
+    """
+    data_type_str = request.args.get('data_type')
+    geo_prefix = request.args.get('geo_prefix')
+    sort_by = request.args.get('sort', 'timestamp') # Default to timestamp sort
+
+    data_type = int(data_type_str) if data_type_str else None
+            
+    # The find_sensors function now handles the sorting logic
+    sensors = db.find_sensors(data_type=data_type, geo_prefix=geo_prefix, sort_by=sort_by)
+    return jsonify(sensors)
+
+
 @app.route("/", methods=['GET'])
 def index_dashboard():
     """Serves the main HTML dashboard page for the registry."""
-    logger.info("Request received for index dashboard.")
-    all_sensors = []
-    try:
-        # Fetch latest 50 sensors to display
-        all_sensors = db.find_sensors(limit=50) 
-        
-        # For each sensor, get its detailed services list
-        for sensor in all_sensors:
-            details = db.get_sensor_details(sensor['device_id'])
-            sensor['services_offered'] = details.get('services_offered', []) if details else []
-
-    except Exception as e:
-        logger.exception("Error preparing data for dashboard.")
+    # Fetch sensors sorted by reputation for the dashboard
+    all_sensors = db.find_sensors(limit=50, sort_by='reputation')
+    
+    for sensor in all_sensors:
+        details = db.get_sensor_details(sensor['device_id'])
+        sensor['services_offered'] = details.get('services_offered', []) if details else []
 
     return render_template(
         "index.html",
         sensors=all_sensors,
-        time=time # Pass time module for formatting timestamps in the template
+        time=time 
     )
-
 # --- API Routes ---
 
 @app.route("/api/v1/status", methods=['GET'])
@@ -83,27 +92,6 @@ def get_single_sensor(device_id: str):
         abort(404, description=f"Sensor with device_id '{device_id}' not found.")
     return jsonify(sensor_profile)
 
-@app.route("/api/v1/sensors/search", methods=['GET'])
-def search_sensors():
-    """
-    Searches for sensors based on query parameters.
-    e.g., /search?data_type=1&geo_prefix=u4p
-    """
-    data_type_str = request.args.get('data_type')
-    geo_prefix = request.args.get('geo_prefix')
-    
-    data_type = None
-    if data_type_str:
-        try:
-            data_type = int(data_type_str)
-        except ValueError:
-            abort(400, description="Invalid 'data_type' parameter. Must be an integer.")
-            
-    if not data_type and not geo_prefix:
-        abort(400, description="At least one search parameter ('data_type' or 'geo_prefix') is required.")
-
-    sensors = db.find_sensors(data_type=data_type, geo_prefix=geo_prefix)
-    return jsonify(sensors)
 
 def main():
     """Main entry point to run the API server."""

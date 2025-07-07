@@ -125,29 +125,43 @@ def heartbeat_worker():
             logger.exception(f"An error occurred in the heartbeat_worker loop: {e}")
         logger.info(f"Heartbeat cycle complete. Next check in 1 hour.")
         time.sleep(3600)
+        
 
 def block_polling_loop():
     logger.info("Block polling loop started.")
     last_processed_str = database.get_indexer_state('last_processed_block_height')
     last_processed_height = int(last_processed_str) if last_processed_str else 0
 
-    if last_processed_height == 0:
+    # --- START MODIFICATION: Add rewind logic ---
+    if last_processed_height > 0:
+        # This is a restart, not a first run.
+        logger.info(f"Restart detected. Last processed block was {last_processed_height}.")
+        # Rewind by the configured number of blocks to ensure consistency.
+        rewind_amount = config.REWIND_ON_STARTUP
+        last_processed_height = max(0, last_processed_height - rewind_amount) # Use max() to prevent going below zero
+        logger.info(f"Rewinding {rewind_amount} blocks. New starting height: {last_processed_height}")
+    else:
+        # This is the very first run.
         logger.info("No last processed block found. Starting from recent history.")
         current_height = get_current_block_height()
         if current_height:
-            last_processed_height = current_height - config.BACKFILL_BLOCK_COUNT
+            last_processed_height = max(0, current_height - config.BACKFILL_BLOCK_COUNT)
             logger.info(f"Set starting block height to {last_processed_height}")
         else:
-            logger.critical("Could not get current block height. Cannot start polling loop."); return
+            logger.critical("Could not get current block height. Cannot start polling loop.")
+            return
+    # --- END MODIFICATION ---
 
     while True:
         try:
             current_height = get_current_block_height()
             if not current_height:
                 logger.warning("Could not get current block height. Retrying in 60s."); time.sleep(60); continue
+            
             if last_processed_height >= current_height:
                 logger.info(f"Caught up to current block height ({current_height}). Waiting for new blocks..."); time.sleep(60); continue
 
+            # The rest of the loop remains the same
             for target_height in range(last_processed_height + 1, current_height + 1):
                 logger.info(f"Processing block {target_height}...")
                 op_return_txids = get_block_op_return_txs(target_height)

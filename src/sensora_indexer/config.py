@@ -21,3 +21,4 @@ ADVERTISEMENT_PREFIX = b'SNSRADV1'
 # --- DAEMON SETTINGS ---
 # How far back to check for missed blocks on startup
 BACKFILL_BLOCK_COUNT = 144 # e.g., about 1 day worth of blocks
+REWIND_ON_STARTUP = 15

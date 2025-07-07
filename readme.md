@@ -7,7 +7,7 @@ It consists of two main components:
 1.  **The Daemon:** A continuously running process that polls the blockchain, finds `SNSRADV1` advertisement transactions, parses them, and stores the sensor profiles in a database.
 2.  **The API:** A Flask-based REST API that serves the collected sensor data, providing a searchable, public registry of all known sensors.
 
-This service is the discovery layer for the Sensōra ecosystem, enabling consumer applications to find data providers. It relies on sensor data broadcast by the [Sensōra Agent](https://github.com/your_username/sensor_agent) (<- **UPDATE THIS LINK**).
+This service is the discovery layer for the Sensōra ecosystem, enabling consumer applications to find data providers. It relies on sensor data broadcast by the [Sensōra Agent](https://github.com/msmrez/sensor_agent) (<- **UPDATE THIS LINK**).
 
 ## Core Features
 
@@ -41,7 +41,7 @@ The indexer operates in a continuous loop:
 1.  **Clone the Repository:**
 
     ```bash
-    git clone https://github.com/your_username/sensora_indexer.git
+    git clone https://github.com/msmrez/sensora_indexer.git
     cd sensora_indexer
     ```
 

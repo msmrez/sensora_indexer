@@ -5,50 +5,54 @@ import ipaddress
 import logging
 from . import config
 
+
 logger = logging.getLogger(__name__)
 
 def parse_op_return_from_script_hex(script_hex: str) -> bytes | None:
     """
     Parses the data payload from a full OP_RETURN script hex.
-    This version correctly handles a single data push, which is what the agent creates.
+    This simplified version correctly handles 'OP_FALSE OP_RETURN' scripts.
     """
     try:
-        if script_hex.startswith("006a"):
-            script_bytes = bytes.fromhex(script_hex[4:])
-        elif script_hex.startswith("6a"):
-            script_bytes = bytes.fromhex(script_hex[2:])
-        else:
-            return None
-
-        if not script_bytes:
-            return b''
-
-        # This manual parser will now correctly extract the single, large data payload
-        opcode = script_bytes[0]
-        data_start, length_to_read = 0, 0
-        if 0x01 <= opcode <= 0x4b:
-            length_to_read = opcode; data_start = 1
-        elif opcode == 0x4c:
-            if len(script_bytes) < 2: return None
-            length_to_read = script_bytes[1]; data_start = 2
-        elif opcode == 0x4d:
-            if len(script_bytes) < 3: return None
-            length_to_read = int.from_bytes(script_bytes[1:3], 'little'); data_start = 3
-        elif opcode == 0x4e:
-            if len(script_bytes) < 5: return None
-            length_to_read = int.from_bytes(script_bytes[1:5], 'little'); data_start = 5
-        else:
-            return None
-        
-        if len(script_bytes) < data_start + length_to_read:
-            logger.warning("Script indicates data length but is truncated.")
-            return None
+        # Standard OP_FALSE OP_RETURN
+        if script_hex.startswith('006a'):
+            # The script is: 006a <pushdata_opcode> <data>
+            # We need to skip the opcodes to get to the data.
+            script_bytes = bytes.fromhex(script_hex)
             
-        return script_bytes[data_start : data_start + length_to_read]
-    except Exception as e:
-        logger.exception(f"Error manually parsing OP_RETURN hex: {e}")
+            # The byte at index 2 is the pushdata opcode.
+            # 0x01-0x4b: pushdata is the opcode value itself. data starts at index 3.
+            # 0x4c: next byte is length. data starts at index 4.
+            # 0x4d: next 2 bytes are length. data starts at index 5.
+            opcode = script_bytes[2]
+            if 0x01 <= opcode <= 0x4b:
+                return script_bytes[3:]
+            elif opcode == 0x4c:
+                return script_bytes[4:]
+            elif opcode == 0x4d:
+                return script_bytes[5:]
+            else: # Not a simple push, or an unsupported one.
+                return None
+
+        # Standard OP_RETURN
+        elif script_hex.startswith('6a'):
+             # The script is: 6a <pushdata_opcode> <data>
+            script_bytes = bytes.fromhex(script_hex)
+            opcode = script_bytes[1]
+            if 0x01 <= opcode <= 0x4b:
+                return script_bytes[2:]
+            elif opcode == 0x4c:
+                return script_bytes[3:]
+            elif opcode == 0x4d:
+                return script_bytes[4:]
+            else:
+                return None
+                
         return None
 
+    except (ValueError, IndexError) as e:
+        logger.error(f"Error parsing OP_RETURN hex '{script_hex[:30]}...': {e}")
+        return None
 
 def parse_advertisement_payload(payload: bytes) -> dict | None:
     """
@@ -89,7 +93,7 @@ def parse_advertisement_payload(payload: bytes) -> dict | None:
             services.append({"data_type": data_type, "price_sats": price_sats})
 
         # Timestamp (4 bytes, as corrected in agent's protocol)
-        timestamp, = struct.unpack_from('>I', payload, offset)
+        timestamp, = struct.unpack_from('>Q', payload, offset)
 
         return {
             "protocol": "SNSRADV1",

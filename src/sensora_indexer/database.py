@@ -10,13 +10,18 @@ logger = logging.getLogger(__name__)
 def get_registry_db_connection():
     """Establishes a connection to the SQLite database."""
     try:
+        # --- ADD THIS DIAGNOSTIC LINE ---
+        db_path = os.path.abspath(config.REGISTRY_DATABASE_NAME)
+        logger.info(f"Attempting to connect to DB at absolute path: {db_path}")
+        # --- END DIAGNOSTIC LINE ---
+
         conn = sqlite3.connect(config.REGISTRY_DATABASE_NAME, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
     except sqlite3.Error as e:
         logger.exception(f"DB_ERROR: Could not connect to database '{config.REGISTRY_DATABASE_NAME}': {e}")
         return None
-
+        
 def init_registry_db():
     """Initializes the database and creates tables if they don't exist."""
     conn = None

@@ -123,7 +123,9 @@ def upsert_sensor_advertisement(adv_data: dict):
     finally:
         if conn:
             conn.close()
-def update_sensor_reputation(device_id: str, is_online: bool, reputation_data: dict | None):
+
+
+def update_sensor_reputation(device_id: str, port: int, is_online: bool, reputation_data: dict | None):
     """Updates the online status and reputation metrics for a sensor."""
     conn = None
     try:
@@ -131,26 +133,34 @@ def update_sensor_reputation(device_id: str, is_online: bool, reputation_data: d
         cursor = conn.cursor()
 
         if is_online and reputation_data:
+            # Agent is online, update everything
             cursor.execute('''
                 UPDATE sensors
                 SET is_online = 1,
                     stamp_success_rate = ?,
-                    total_stamps = ?
-                WHERE device_id = ?;
+                    total_stamps = ?,
+                    uptime_percentage = ?
+                WHERE device_id = ? AND port = ?;
             ''', (
                 reputation_data.get('stamp_success_rate', 100.0),
                 reputation_data.get('total_stamps', 0),
-                device_id
+                reputation_data.get('uptime_percentage', 100.0),
+                device_id,
+                port  # Use the port in the WHERE clause
             ))
+            logger.info(f"Updated reputation for ONLINE sensor {device_id}:{port}")
         else:
-            cursor.execute("UPDATE sensors SET is_online = 0 WHERE device_id = ?", (device_id,))
+            # Agent is offline, mark it as such
+            cursor.execute("UPDATE sensors SET is_online = 0 WHERE device_id = ? AND port = ?", (device_id, port))
+            logger.warning(f"Marked sensor {device_id}:{port} as OFFLINE.")
         
         conn.commit()
     except Exception as e:
-        logger.exception(f"Failed to update reputation for sensor {device_id}: {e}")
+        logger.exception(f"Failed to update reputation for sensor {device_id}:{port}: {e}")
     finally:
         if conn:
             conn.close()
+
 
 def get_indexer_state(key: str) -> str | None:
     """Gets a value from the state table."""

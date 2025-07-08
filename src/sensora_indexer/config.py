@@ -16,7 +16,7 @@ BITAILS_API_BASE_URL = "https://api.bitails.io"
 
 # --- PROTOCOL ---
 # The prefix we are looking for in OP_RETURN data
-ADVERTISEMENT_PREFIX = b'SENSORA_ADV1'
+ADVERTISEMENT_PREFIX = b'SENSORA_ADV'
 
 # --- DAEMON SETTINGS ---
 # How far back to check for missed blocks on startup

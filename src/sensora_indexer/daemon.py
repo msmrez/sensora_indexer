@@ -33,7 +33,6 @@ def process_transaction_data(tx_data: dict):
         if not script_hex or not (script_hex.startswith("006a") or script_hex.startswith("6a")):
             continue
         
-        # --- START FINAL CORRECTION ---
         # 1. Parse the entire OP_RETURN payload from the script hex.
         op_return_payload = protocols.parse_op_return_from_script_hex(script_hex)
         if not op_return_payload:
@@ -46,7 +45,6 @@ def process_transaction_data(tx_data: dict):
             adv_data['txid'] = txid
             database.upsert_sensor_advertisement(adv_data)
             return # Stop processing this transaction
-        # --- END FINAL CORRECTION ---
 
 def get_current_block_height() -> int | None:
     try:
@@ -201,7 +199,7 @@ def block_polling_loop():
 
                         # Filter based on the reliable 'op_return' tag.
                         for summary in tx_summaries:
-                            if 'op_return' in summary.get('tags', []):
+                            if 'sensora' in summary.get('tags', []):
                                 op_return_txids.add(summary['txid'])
                         
                         current_pos += len(tx_summaries)

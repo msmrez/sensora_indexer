@@ -4,7 +4,7 @@ This repository contains the **Sensōra Indexer**, a backend service that listen
 
 It consists of two main components:
 
-1.  **The Daemon:** A continuously running process that polls the blockchain, finds `SENSORA-ADV1` advertisement transactions, parses them, and stores the sensor profiles in a database.
+1.  **The Daemon:** A continuously running process that polls the blockchain, finds `SENSORA_ADV1` advertisement transactions, parses them, and stores the sensor profiles in a database.
 2.  **The API:** A Flask-based REST API that serves the collected sensor data, providing a searchable, public registry of all known sensors.
 
 This service is the discovery layer for the Sensōra ecosystem, enabling consumer applications to find data providers.
@@ -32,7 +32,7 @@ This service discovers [Sensōra Agents](https://github.com/msmrez/sensora_agent
 
 ## Core Features
 
-- **Blockchain-Powered Discovery:** Uses on-chain `OP_RETURN` data (`SENSORA-ADV1` protocol) as the single source of truth.
+- **Blockchain-Powered Discovery:** Uses on-chain `OP_RETURN` data (`SENSORA_ADV1` protocol) as the single source of truth.
 - **Stateful & Resilient:** Uses a local SQLite database (`sensor_registry.db`) to save its progress, allowing it to stop and restart without losing data or re-scanning the entire blockchain.
 - **Robust & Efficient Polling:** Intelligently paginates through block transactions to ensure no advertisements are missed, even on unreliable APIs.
 - **Public API:** Exposes the registry via a simple, clean REST API for any developer or application to use.
@@ -40,14 +40,14 @@ This service discovers [Sensōra Agents](https://github.com/msmrez/sensora_agent
 
 ## On-Chain Protocol
 
-The Indexer **consumes** the `SENSORA-ADV1` protocol to learn about active sensors.
+The Indexer **consumes** the `SENSORA_ADV1` protocol to learn about active sensors.
 
-- **Prefix:** `SENSORA-ADV1` (ASCII)
+- **Prefix:** `SENSORA_ADV1` (ASCII)
 - **Payload Structure:**
 
 | Field           | Size (Bytes) | Data Type               | Description                         |
 | :-------------- | :----------- | :---------------------- | :---------------------------------- |
-| Prefix          | **12**       | ASCII                   | `SENSORA-ADV1`                      |
+| Prefix          | **12**       | ASCII                   | `SENSORA_ADV1`                      |
 | Device ID Type  | 1            | Unsigned Byte           | `0x01` for Full IPv6                |
 | Device ID       | 16           | Bytes                   | The sensor's IPv6 address           |
 | Port            | 2            | Unsigned Short (BE)     | API listener port                   |
@@ -66,8 +66,8 @@ The indexer daemon operates in a continuous loop:
 1.  **Get Current Block Height:** It checks the latest block height on the BSV network.
 2.  **Get Block Hash:** For each new block, it retrieves the block's hash.
 3.  **Paginate Transactions:** It uses the Bitails API's paginated endpoint to fetch a complete list of all transaction summaries in the block.
-4.  **Filter for OP_RETURNs:** It scans the summaries and identifies all transactions tagged with `op_return`.
-5.  **Fetch & Parse:** It fetches the full details for only the `op_return` candidate transactions. It looks for the `SENSORA-ADV1` prefix in the `OP_RETURN` data.
+4.  **Filter for OP_RETURNs:** It scans the summaries and identifies all transactions tagged with `sensora`.
+5.  **Fetch & Parse:** It fetches the full details for only the `sensora` candidate transactions. It looks for the `SENSORA_ADV1` prefix in the `OP_RETURN` data.
 6.  **Upsert to Database:** When a valid advertisement is found, it is parsed, and the sensor's information (IPv6, port, services, price, location) is inserted or updated in the `sensor_registry.db`.
 7.  **Save State:** After each block is processed, the daemon saves the block height to its database so it knows where to resume on restart.
 

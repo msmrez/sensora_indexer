@@ -19,13 +19,12 @@ The Indexer is the central discovery layer of the network, acting as the "yellow
 │                 │                          │ BSV Blockchain │                        │ Sensōra      │
 │ on IoT Device   │   2. Stamp Data Proof    │                │   5. Purchase Data     │ Client       │
 │                 │  <─────────────────────  │ (Ledger)       │  ───────────────────>  │              │
-└─────────────────┘   3. Listen for Ads      └────────────────┘   6. Verify Proof      └──────────────┘
+└─────────────────┘   3. Listen for Ads      └────────────────┘                        └──────────────┘
        ^            <─────────────────────                          ^
        │                                  │                         │
-       │ 7. Query for Agents              │ 3a. Index results       │
+       │ 6. Query for Agents              │ 3a. Index results       │
        │                                  │                         │
        └───────────────────────────────────[ Sensōra Indexer ]───────┘
-                                              (This Project)
 ```
 
 This service discovers [Sensōra Agents](https://github.com/msmrez/sensora_agent) and provides data for the [Sensōra Client](https://github.com/msmrez/sensora_client).

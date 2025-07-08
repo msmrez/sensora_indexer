@@ -181,13 +181,13 @@ def block_polling_loop():
                 if not block_hash:
                     logger.error(f"Could not get block hash for height {target_height}. Skipping block.")
                     continue
-
-                # Step 2: Use the new paginated endpoint to fetch all TXIDs.
-                all_txids = []
-                current_pos = 0
-                limit = 100 # How many tx summaries to fetch per API call.
+                candidate_txids = set()
+                total_tx_count = 0
                 
-                logger.info(f"Fetching transaction list for block {target_height} using hash {block_hash[:10]}...")
+                current_pos = 0
+                limit = 200 # Can use a slightly larger limit now
+
+                logger.info(f"Fetching transaction list for block {target_height}...")
                 while True:
                     url = f"{config.BITAILS_API_BASE_URL}/block/{block_hash}/transactions?from={current_pos}&limit={limit}"
                     try:
@@ -195,25 +195,32 @@ def block_polling_loop():
                         response.raise_for_status()
                         tx_summaries = response.json()
                         
-                        if not tx_summaries: # No more transactions in the block
-                            break
+                        if not tx_summaries: break
                         
+                        total_tx_count += len(tx_summaries)
+
                         for summary in tx_summaries:
-                            all_txids.append(summary['txid'])
+                            # Condition 1: The transaction is explicitly tagged.
+                            if 'op_return' in summary.get('tags', []):
+                                candidate_txids.add(summary['txid'])
+                            # Condition 2 (Our Safety Net): The transaction is small enough to be a candidate.
+                            elif summary.get('size', 9999) < config.HEURISTIC_SIZE_THRESHOLD:
+                                candidate_txids.add(summary['txid'])
                         
                         current_pos += len(tx_summaries)
                     except Exception as e:
                         logger.exception(f"Error fetching TX list from {url}: {e}")
-                        break # Stop trying for this block on error
+                        break
 
-                logger.info(f"Found {len(all_txids)} total transactions. Now fetching full data for each.")
+                logger.info(f"Scanned {total_tx_count} total transactions. Found {len(candidate_txids)} candidates to check fully.")
 
-                # Step 3: Iterate through the collected TXIDs and process each one.
-                for txid in all_txids:
-                    # We no longer trust the tags, so we fetch every single one.
+                # Now, only fetch the full data for our small list of candidates.
+                for txid in candidate_txids:
                     full_tx_data = get_full_transaction(txid)
                     if full_tx_data:
                         process_transaction_data(full_tx_data)
+
+                # --- END MODIFICATION ---
                 
                 last_processed_height = target_height
                 database.set_indexer_state('last_processed_block_height', str(last_processed_height))

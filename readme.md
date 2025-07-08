@@ -98,6 +98,10 @@ The indexer daemon operates in a continuous loop:
     ```bash
     pip install -r requirements.txt
     ```
+4.  **Install Daemon and API services:**
+    ```bash
+    pip install -e .
+    ```
 
 ### Running the Service
 

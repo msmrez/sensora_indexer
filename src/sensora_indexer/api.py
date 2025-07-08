@@ -84,14 +84,13 @@ def list_all_sensors():
     sensors = db.find_sensors()
     return jsonify(sensors)
 
-@app.route("/api/v1/sensor/<string:device_id>", methods=['GET'])
-def get_single_sensor(device_id: str):
-    """Gets the detailed profile of a single sensor by its ID (IPv6 address)."""
-    sensor_profile = db.get_sensor_details(device_id)
+@app.route("/api/v1/sensor/<string:device_id>/<int:port>", methods=['GET'])
+def get_single_sensor(device_id: str, port: int):
+    """Gets the detailed profile of a single sensor agent by its ID and port."""
+    sensor_profile = db.get_sensor_details(device_id, port) # Pass both to the DB function
     if not sensor_profile:
-        abort(404, description=f"Sensor with device_id '{device_id}' not found.")
+        abort(404, description=f"Sensor with device_id '{device_id}' on port '{port}' not found.")
     return jsonify(sensor_profile)
-
 
 def main():
     """Main entry point to run the API server."""

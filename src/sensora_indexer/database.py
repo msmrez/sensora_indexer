@@ -22,6 +22,7 @@ def get_registry_db_connection():
         logger.exception(f"DB_ERROR: Could not connect to database '{config.REGISTRY_DATABASE_NAME}': {e}")
         return None
 
+
 def init_registry_db():
     """Initializes the database and creates tables if they don't exist."""
     conn = None
@@ -31,31 +32,33 @@ def init_registry_db():
 
         cursor = conn.cursor()
 
-        # --- THIS IS THE CORRECTED SENSORS TABLE SCHEMA ---
+        # UPDATED sensors TABLE SCHEMA
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sensors (
-                device_id TEXT PRIMARY KEY,
+                device_id TEXT,
+                port INTEGER,
                 ipv6_address TEXT NOT NULL,
-                port INTEGER NOT NULL,
                 geohash TEXT,
                 last_adv_timestamp INTEGER,
                 last_adv_txid TEXT,
                 is_online INTEGER DEFAULT 0,
-                -- New Reputation Columns --
                 uptime_percentage REAL DEFAULT 100.0,
                 stamp_success_rate REAL DEFAULT 100.0,
                 total_stamps INTEGER DEFAULT 0,
-                total_advertisements INTEGER DEFAULT 0
+                total_advertisements INTEGER DEFAULT 0,
+                PRIMARY KEY (device_id, port)
             );
         ''')
 
+        # --- THIS IS THE CRITICAL CHANGE FOR THE SERVICES TABLE ---
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS services (
                 device_id TEXT,
+                port INTEGER, -- Added port
                 data_type_code INTEGER,
                 price_sats INTEGER,
-                PRIMARY KEY (device_id, data_type_code),
-                FOREIGN KEY (device_id) REFERENCES sensors (device_id) ON DELETE CASCADE
+                PRIMARY KEY (device_id, port, data_type_code), -- New composite key
+                FOREIGN KEY (device_id, port) REFERENCES sensors (device_id, port) ON DELETE CASCADE
             );
         ''')
 
@@ -74,6 +77,7 @@ def init_registry_db():
         if conn:
             conn.close()
 
+
 def upsert_sensor_advertisement(adv_data: dict):
     """Inserts or updates a sensor's profile based on a new advertisement."""
     conn = None
@@ -82,41 +86,43 @@ def upsert_sensor_advertisement(adv_data: dict):
         cursor = conn.cursor()
         
         device_id = adv_data['device_id']
+        port = adv_data['port'] # Extract port for clarity
         
-        # Upsert into the main sensors table
+        # Upsert into the main sensors table - FULLY CORRECTED
         cursor.execute('''
-            INSERT INTO sensors (device_id, ipv6_address, port, geohash, last_adv_timestamp, last_adv_txid, is_online, total_advertisements)
-            VALUES (?, ?, ?, ?, ?, ?, 1, COALESCE((SELECT total_advertisements FROM sensors WHERE device_id = ?), 0) + 1)
-            ON CONFLICT(device_id) DO UPDATE SET
+            INSERT INTO sensors (device_id, port, ipv6_address, geohash, last_adv_timestamp, last_adv_txid, is_online, total_advertisements)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 
+                COALESCE((SELECT total_advertisements FROM sensors WHERE device_id = ? AND port = ?), 0) + 1
+            )
+            ON CONFLICT(device_id, port) DO UPDATE SET
                 ipv6_address = excluded.ipv6_address,
-                port = excluded.port,
                 geohash = excluded.geohash,
                 last_adv_timestamp = excluded.last_adv_timestamp,
                 last_adv_txid = excluded.last_adv_txid,
                 is_online = 1,
                 total_advertisements = sensors.total_advertisements + 1;
         ''', (
-            device_id, adv_data['ipv6_address'], adv_data['port'], adv_data['geohash'],
-            adv_data['timestamp'], adv_data['txid'], device_id
+            device_id, port, adv_data['ipv6_address'], adv_data['geohash'],
+            adv_data['timestamp'], adv_data['txid'],
+            device_id, port  # Parameters for the subquery
         ))
 
-        # Upsert services offered
+        # Upsert services offered - FULLY CORRECTED
         for service in adv_data.get('services', []):
             cursor.execute('''
-                INSERT INTO services (device_id, data_type_code, price_sats)
-                VALUES (?, ?, ?)
-                ON CONFLICT(device_id, data_type_code) DO UPDATE SET
+                INSERT INTO services (device_id, port, data_type_code, price_sats)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(device_id, port, data_type_code) DO UPDATE SET
                     price_sats = excluded.price_sats;
-            ''', (device_id, service['data_type'], service['price_sats']))
+            ''', (device_id, port, service['data_type'], service['price_sats']))
 
         conn.commit()
-        logger.info(f"Successfully upserted advertisement for sensor {device_id}")
+        logger.info(f"Successfully upserted advertisement for sensor {device_id} on port {port}")
     except Exception as e:
-        logger.exception(f"Failed to upsert sensor advertisement for {adv_data.get('device_id')}: {e}")
+        logger.exception(f"Failed to upsert sensor advertisement for {device_id} on port {port}: {e}")
     finally:
         if conn:
             conn.close()
-
 def update_sensor_reputation(device_id: str, is_online: bool, reputation_data: dict | None):
     """Updates the online status and reputation metrics for a sensor."""
     conn = None

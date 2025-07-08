@@ -84,6 +84,22 @@ def get_block_op_return_txs(height: int) -> list[str] | None:
         logger.exception(f"Failed to get and filter block content for height {height}: {e}")
         return None
 
+def get_block_hash(height: int) -> str | None:
+    """Gets the hash of a block at a specific height."""
+    try:
+        url = f"{config.BITAILS_API_BASE_URL}/block/height/{height}"
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        if 'hash' in data:
+            return data['hash']
+        logger.error(f"Could not find 'hash' in block response for height {height}")
+        return None
+    except Exception as e:
+        logger.exception(f"Failed to get block hash for height {height}: {e}")
+        return None
+
+# We keep this function as our reliable way to get full tx details.
 def get_full_transaction(txid: str) -> dict | None:
     try:
         url = f"{config.BITAILS_API_BASE_URL}/tx/{txid}"
@@ -135,13 +151,11 @@ def block_polling_loop():
     last_processed_str = database.get_indexer_state('last_processed_block_height')
     last_processed_height = int(last_processed_str) if last_processed_str else 0
 
-    # --- START MODIFICATION: Add rewind logic ---
+    # ... (the startup/rewind logic is the same)
     if last_processed_height > 0:
-        # This is a restart, not a first run.
         logger.info(f"Restart detected. Last processed block was {last_processed_height}.")
-        # Rewind by the configured number of blocks to ensure consistency.
         rewind_amount = config.REWIND_ON_STARTUP
-        last_processed_height = max(0, last_processed_height - rewind_amount) # Use max() to prevent going below zero
+        last_processed_height = max(0, last_processed_height - rewind_amount)
         logger.info(f"Rewinding {rewind_amount} blocks. New starting height: {last_processed_height}")
     else:
         # This is the very first run.
@@ -153,30 +167,56 @@ def block_polling_loop():
         else:
             logger.critical("Could not get current block height. Cannot start polling loop.")
             return
-    # --- END MODIFICATION ---
 
     while True:
         try:
             current_height = get_current_block_height()
             if not current_height:
-                logger.warning("Could not get current block height. Retrying in 60s."); time.sleep(60); continue
-            
+                time.sleep(60); continue
             if last_processed_height >= current_height:
-                logger.info(f"Caught up to current block height ({current_height}). Waiting for new blocks..."); time.sleep(60); continue
+                time.sleep(60); continue
 
-            # The rest of the loop remains the same
             for target_height in range(last_processed_height + 1, current_height + 1):
                 logger.info(f"Processing block {target_height}...")
-                op_return_txids = get_block_op_return_txs(target_height)
-                if op_return_txids is not None:
-                    if not op_return_txids:
-                        logger.info(f"No transactions with OP_RETURN found in block {target_height}.")
-                    else:
-                        logger.info(f"Found {len(op_return_txids)} transactions with OP_RETURN in block {target_height}.")
-                        for txid in op_return_txids:
-                            tx_data = get_full_transaction(txid)
-                            if tx_data:
-                                process_transaction_data(tx_data)
+                
+                # Step 1: Get the block hash for the target height.
+                block_hash = get_block_hash(target_height)
+                if not block_hash:
+                    logger.error(f"Could not get block hash for height {target_height}. Skipping block.")
+                    continue
+
+                # Step 2: Use the new paginated endpoint to fetch all TXIDs.
+                all_txids = []
+                current_pos = 0
+                limit = 100 # How many tx summaries to fetch per API call.
+                
+                logger.info(f"Fetching transaction list for block {target_height} using hash {block_hash[:10]}...")
+                while True:
+                    url = f"{config.BITAILS_API_BASE_URL}/block/{block_hash}/transactions?from={current_pos}&limit={limit}"
+                    try:
+                        response = requests.get(url, timeout=20)
+                        response.raise_for_status()
+                        tx_summaries = response.json()
+                        
+                        if not tx_summaries: # No more transactions in the block
+                            break
+                        
+                        for summary in tx_summaries:
+                            all_txids.append(summary['txid'])
+                        
+                        current_pos += len(tx_summaries)
+                    except Exception as e:
+                        logger.exception(f"Error fetching TX list from {url}: {e}")
+                        break # Stop trying for this block on error
+
+                logger.info(f"Found {len(all_txids)} total transactions. Now fetching full data for each.")
+
+                # Step 3: Iterate through the collected TXIDs and process each one.
+                for txid in all_txids:
+                    # We no longer trust the tags, so we fetch every single one.
+                    full_tx_data = get_full_transaction(txid)
+                    if full_tx_data:
+                        process_transaction_data(full_tx_data)
                 
                 last_processed_height = target_height
                 database.set_indexer_state('last_processed_block_height', str(last_processed_height))
@@ -184,7 +224,6 @@ def block_polling_loop():
         except Exception as e:
             logger.exception(f"An uncaught error occurred in the block polling loop: {e}. Retrying in 5 minutes...")
             time.sleep(300)
-
 if __name__ == "__main__":
     logger.info("--- Starting Sensōra Indexer Daemon ---")
     database.init_registry_db()

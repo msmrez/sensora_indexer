@@ -14,7 +14,7 @@ from . import protocols
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - [%(name)s] %(module)s.%(funcName)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -35,8 +35,9 @@ def process_transaction_data(tx_data: dict):
         
         # --- START FINAL CORRECTION ---
         # 1. Parse the entire OP_RETURN payload from the script hex.
+        logger.debug(f"Found potential OP_RETURN in TXID {txid}. Script hex received from API: {script_hex}")
         op_return_payload = protocols.parse_op_return_from_script_hex(script_hex)
-        if not op_return_payload:
+        logger.debug(f"Parser output for script hex: {op_return_payload.hex() if op_return_payload else 'None'}")        if not op_return_payload:
             continue
 
         # 2. Pass this single byte string to the advertisement parser.

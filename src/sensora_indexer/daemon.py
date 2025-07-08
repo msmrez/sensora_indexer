@@ -37,10 +37,8 @@ def process_transaction_data(tx_data: dict):
         # 1. Parse the entire OP_RETURN payload from the script hex.
         logger.debug(f"Found potential OP_RETURN in TXID {txid}. Script hex received from API: {script_hex}")
         op_return_payload = protocols.parse_op_return_from_script_hex(script_hex)
-        logger.debug(f"Parser output for script hex: {op_return_payload.hex() 
-        if op_return_payload else 'None'}")        if not op_return_payload:
-            continue
-
+        logger.debug(f"Parser output for script hex: {op_return_payload.hex() if op_return_payload else 'None'}")
+        op_return_payload = protocols.parse_op_return_from_script_hex(script_hex)
         # 2. Pass this single byte string to the advertisement parser.
         adv_data = protocols.parse_advertisement_payload(op_return_payload)
         if adv_data:

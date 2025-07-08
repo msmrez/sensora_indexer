@@ -181,11 +181,11 @@ def block_polling_loop():
                 if not block_hash:
                     logger.error(f"Could not get block hash for height {target_height}. Skipping block.")
                     continue
-                candidate_txids = set()
+                op_return_txids = set()
                 total_tx_count = 0
                 
                 current_pos = 0
-                limit = 200 # Can use a slightly larger limit now
+                limit = 200 # A reasonable page size.
 
                 logger.info(f"Fetching transaction list for block {target_height}...")
                 while True:
@@ -195,32 +195,30 @@ def block_polling_loop():
                         response.raise_for_status()
                         tx_summaries = response.json()
                         
-                        if not tx_summaries: break
+                        if not tx_summaries: break # End of the list
                         
                         total_tx_count += len(tx_summaries)
 
+                        # Filter based on the reliable 'op_return' tag.
                         for summary in tx_summaries:
-                            # Condition 1: The transaction is explicitly tagged.
                             if 'op_return' in summary.get('tags', []):
-                                candidate_txids.add(summary['txid'])
-                            # Condition 2 (Our Safety Net): The transaction is small enough to be a candidate.
-                            elif summary.get('size', 9999) < config.HEURISTIC_SIZE_THRESHOLD:
-                                candidate_txids.add(summary['txid'])
+                                op_return_txids.add(summary['txid'])
                         
                         current_pos += len(tx_summaries)
                     except Exception as e:
                         logger.exception(f"Error fetching TX list from {url}: {e}")
                         break
 
-                logger.info(f"Scanned {total_tx_count} total transactions. Found {len(candidate_txids)} candidates to check fully.")
+                logger.info(f"Scanned {total_tx_count} transactions. Found {len(op_return_txids)} with 'op_return' tag.")
 
-                # Now, only fetch the full data for our small list of candidates.
-                for txid in candidate_txids:
+                # Now, only fetch the full data for the tagged transactions.
+                for txid in op_return_txids:
                     full_tx_data = get_full_transaction(txid)
                     if full_tx_data:
+                        # process_transaction_data will do the final check for the SNSRADV1 prefix.
                         process_transaction_data(full_tx_data)
 
-                # --- END MODIFICATION ---
+                # --- END REVISED LOGIC ---
                 
                 last_processed_height = target_height
                 database.set_indexer_state('last_processed_block_height', str(last_processed_height))
@@ -228,6 +226,8 @@ def block_polling_loop():
         except Exception as e:
             logger.exception(f"An uncaught error occurred in the block polling loop: {e}. Retrying in 5 minutes...")
             time.sleep(300)
+
+            
 if __name__ == "__main__":
     logger.info("--- Starting Sensōra Indexer Daemon ---")
     database.init_registry_db()

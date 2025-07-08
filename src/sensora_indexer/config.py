@@ -24,4 +24,3 @@ BACKFILL_BLOCK_COUNT = 144 # e.g., about 1 day worth of blocks
 REWIND_ON_STARTUP = 15
 # When scanning a block, check any untagged transaction smaller than this size (in bytes)
 # just in case its 'op_return' tag was missed by the API. Our SNSRADV1 tx is ~255 bytes.
-HEURISTIC_SIZE_THRESHOLD = 1000

@@ -73,13 +73,10 @@ def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, li
         query = base_query
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-            
-        # --- Add sorting logic ---
         if sort_by == 'reputation':
-            # A simple reputation score: uptime * success rate
-            query += " ORDER BY (s.uptime_percentage * s.stamp_success_rate) DESC, s.last_adv_timestamp DESC"
+            query += " ORDER BY s.is_online DESC, (s.uptime_percentage * s.stamp_success_rate) DESC, s.last_adv_timestamp DESC"
         else: # Default sort by most recently seen
-            query += " ORDER BY s.last_adv_timestamp DESC"
+            query += " ORDER BY s.is_online DESC, s.last_adv_timestamp DESC"
         
         query += " LIMIT ?"
         params.append(limit)

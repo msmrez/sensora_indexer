@@ -108,6 +108,7 @@ def get_full_transaction(txid: str) -> dict | None:
         logger.exception(f"Failed to get full transaction details for txid {txid}: {e}")
         return None
 
+
 def heartbeat_worker():
     logger.info("Heartbeat worker thread started.")
     while True:
@@ -117,29 +118,46 @@ def heartbeat_worker():
             if not conn:
                 logger.error("Heartbeat worker could not get DB connection. Retrying later.")
                 time.sleep(60); continue
-            sensors_to_check = conn.execute("SELECT device_id, ipv6_address, port FROM sensors").fetchall()
+
+            # Fetch all sensors that have advertised recently to check their status
+            # We fetch both device_id and port now.
+            sensors_to_check = conn.execute("SELECT device_id, port, ipv6_address FROM sensors").fetchall()
             conn.close()
-            logger.info(f"Checking status for {len(sensors_to_check)} sensors.")
-            for sensor in sensors_to_check:
-                sensor_dict = dict(sensor)
-                device_id = sensor_dict['device_id']
-                url = f"http://[{sensor_dict['ipv6_address']}]:{sensor_dict['port']}/status"
+            
+            if not sensors_to_check:
+                logger.info("No sensors in the registry to check.")
+            else:
+                logger.info(f"Checking status for {len(sensors_to_check)} sensor agents.")
+            
+            for sensor_row in sensors_to_check:
+                sensor = dict(sensor_row) # Convert row object to dictionary
+                device_id = sensor['device_id']
+                port = sensor['port']
+                
+                url = f"http://[{sensor['ipv6_address']}]:{port}/status"
                 try:
                     response = requests.get(url, timeout=5)
                     response.raise_for_status()
                     data = response.json()
+                    
                     if data.get('status') == 'online':
-                        database.update_sensor_reputation(device_id, True, data.get('reputation'))
+                        # Agent is online, pass its reputation data to the DB function
+                        database.update_sensor_reputation(device_id, port, True, data.get('reputation'))
                     else:
-                        database.update_sensor_reputation(device_id, False, None)
+                        # Agent responded but status is not 'online'
+                        database.update_sensor_reputation(device_id, port, False, None)
+
                 except requests.exceptions.RequestException:
-                    logger.warning(f"Heartbeat failed for sensor {device_id} (network error/timeout).")
-                    database.update_sensor_reputation(device_id, False, None)
+                    # Agent is not reachable (timeout, connection error, etc.)
+                    logger.warning(f"Heartbeat failed for sensor {device_id}:{port} (network error/timeout).")
+                    database.update_sensor_reputation(device_id, port, False, None)
         except Exception as e:
             logger.exception(f"An error occurred in the heartbeat_worker loop: {e}")
-        logger.info(f"Heartbeat cycle complete. Next check in 1 hour.")
-        time.sleep(3600)
         
+        check_interval_seconds = 1800 # Check every 30 minutes
+        logger.info(f"Heartbeat cycle complete. Next check in {check_interval_seconds / 60:.0f} minutes.")
+        time.sleep(check_interval_seconds)
+
 
 def block_polling_loop():
     logger.info("Block polling loop started.")

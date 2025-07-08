@@ -42,15 +42,16 @@ def handle_exception(e):
 @app.route("/api/v1/sensors/search", methods=['GET'])
 def search_sensors():
     """
-    Searches for sensors, now with sorting by reputation.
-    e.g., /search?data_type=1&sort=reputation
+    Searches for sensors, with optional sorting.
+    e.g., /api/v1/sensors/search?data_type=1&sort=reputation
     """
     data_type_str = request.args.get('data_type')
     geo_prefix = request.args.get('geo_prefix')
-    sort_by = request.args.get('sort', 'timestamp') # Default to timestamp sort
-
+    # Default to sorting by 'timestamp' if not specified
+    sort_by = request.args.get('sort', 'timestamp') 
+    
     data_type = int(data_type_str) if data_type_str else None
-            
+    
     # The find_sensors function now handles the sorting logic
     sensors = db.find_sensors(data_type=data_type, geo_prefix=geo_prefix, sort_by=sort_by)
     return jsonify(sensors)

@@ -207,7 +207,7 @@ def block_polling_loop():
                         logger.exception(f"Error fetching TX list from {url}: {e}")
                         break
 
-                logger.info(f"Scanned {total_tx_count} transactions. Found {len(op_return_txids)} with 'op_return' tag.")
+                logger.info(f"Scanned {total_tx_count} transactions. Found {len(op_return_txids)} with 'sensora' tag.")
 
                 # Now, only fetch the full data for the tagged transactions.
                 for txid in op_return_txids:

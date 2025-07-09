@@ -23,7 +23,8 @@ def get_sensor_details(device_id: str) -> dict | None:
         conn = get_registry_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM sensors WHERE device_id = ? AND port = ?", (device_id, port))        sensor_row = cursor.fetchone()
+        cursor.execute("SELECT * FROM sensors WHERE device_id = ? AND port = ?", (device_id, port))
+        sensor_row = cursor.fetchone()
         
         if not sensor_row:
             return None

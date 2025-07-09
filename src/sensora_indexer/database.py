@@ -143,10 +143,10 @@ def update_sensor_reputation(device_id: str, port: int, is_online: bool, reputat
                 WHERE device_id = ? AND port = ?;
             ''', (
                 reputation_data.get('stamp_success_rate', 100.0),
-                reputation_data.get('total_stamps', 0),
+                reputation_data.get('total_stamps_recorded', 0),
                 reputation_data.get('uptime_percentage', 100.0),
                 device_id,
-                port  # Use the port in the WHERE clause
+                port
             ))
             logger.info(f"Updated reputation for ONLINE sensor {device_id}:{port}")
         else:

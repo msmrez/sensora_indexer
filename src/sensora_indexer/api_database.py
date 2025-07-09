@@ -23,15 +23,14 @@ def get_sensor_details(device_id: str) -> dict | None:
         conn = get_registry_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM sensors WHERE device_id = ?", (device_id,))
-        sensor_row = cursor.fetchone()
+        cursor.execute("SELECT * FROM sensors WHERE device_id = ? AND port = ?", (device_id, port))        sensor_row = cursor.fetchone()
         
         if not sensor_row:
             return None
             
         sensor_profile = dict(sensor_row)
         
-        cursor.execute("SELECT data_type_code, price_sats FROM services WHERE device_id = ?", (device_id,))
+        cursor.execute("SELECT data_type_code, price_sats FROM services WHERE device_id = ?AND port = ?", (device_id, port))
         service_rows = cursor.fetchall()
         sensor_profile['services_offered'] = [dict(row) for row in service_rows]
             

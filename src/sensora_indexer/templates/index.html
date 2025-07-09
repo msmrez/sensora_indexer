@@ -215,55 +215,28 @@
             <span class="status-badge offline">Offline</span>
             {% endif %}
           </div>
-          <dl class="sensor-details">
-            <dt>Location</dt>
-            <dd>
-              {% if sensor.geohash %}
-              <a
-                href="https://geohash.io/{{ sensor.geohash }}"
-                target="_blank"
-                class="code"
-                >{{ sensor.geohash }}</a
-              >
-              {% else %} Not Provided {% endif %}
-            </dd>
-
-            <dt>Last Advertisement</dt>
-            <dd>
-              <a
-                href="https://whatsonchain.com/tx/{{ sensor.last_adv_txid }}"
-                target="_blank"
-                class="code"
-                title="{{ sensor.last_adv_txid }}"
-              >
-                {{ sensor.last_adv_txid[:12] }}...{{ sensor.last_adv_txid[-12:]
-                }}
-              </a>
-            </dd>
-
-            <dt>Services Offered</dt>
-            <dd>
-              {% for service in sensor.services_offered %} Data Type
-              <strong class="code">{{ service.data_type_code }}</strong> at
-              <strong>{{ service.price_sats }} sats</strong><br />
-              {% else %} No services listed in last advertisement. {% endfor %}
-            </dd>
-
-            <dt>Reputation</dt>
-            <dd class="reputation-metrics">
-              <span
-                ><strong>Uptime:</strong> {{
-                "%.2f"|format(sensor.uptime_percentage) }}%</span
-              >
-              <span
-                ><strong>Stamping:</strong> {{
-                "%.2f"|format(sensor.stamp_success_rate) }}% OK</span
-              >
-              <span
-                ><strong>Total Proofs:</strong> {{ sensor.total_stamps }}</span
-              >
-            </dd>
-          </dl>
+          <dt>Location</dt>
+          <dd>
+            {% if sensor.latitude and sensor.longitude %}
+            <!-- If we have coordinates, link directly to Google Maps -->
+            <a
+              href="https://www.google.com/maps/search/?api=1&query={{ sensor.latitude }},{{ sensor.longitude }}"
+              target="_blank"
+              class="code"
+              title="View on Google Maps"
+            >
+              {{ sensor.geohash }}
+            </a>
+            {% elif sensor.geohash %}
+            <!-- Fallback for a valid geohash that failed to decode, using geohash.org -->
+            <a
+              href="http://geohash.org/{{ sensor.geohash }}"
+              target="_blank"
+              class="code"
+              >{{ sensor.geohash }}</a
+            >
+            {% else %} Not Provided {% endif %}
+          </dd>
         </section>
         {% endfor %} {% else %}
         <p

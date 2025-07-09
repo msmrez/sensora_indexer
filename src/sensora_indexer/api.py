@@ -3,6 +3,7 @@
 import logging
 import json
 import time
+import pygeohash as pgh
 from flask import Flask, jsonify, request, abort, render_template
 from werkzeug.exceptions import HTTPException
 
@@ -56,6 +57,36 @@ def search_sensors():
     sensors = db.find_sensors(data_type=data_type, geo_prefix=geo_prefix, sort_by=sort_by)
     return jsonify(sensors)
 
+@app.route("/", methods=['GET'])
+def index_dashboard():
+    """Serves the main HTML dashboard page for the registry."""
+    # Fetch sensors sorted by reputation
+    all_sensors = db.find_sensors(limit=50, sort_by='reputation')
+    
+    # --- THIS IS THE NEW LOGIC ---
+    # Loop through the sensors to decode their geohash before sending to the template
+    for sensor in all_sensors:
+        if sensor.get('geohash'):
+            try:
+                # Decode the geohash to get (latitude, longitude)
+                lat, lon = pgh.decode(sensor['geohash'])
+                sensor['latitude'] = lat
+                sensor['longitude'] = lon
+            except Exception:
+                # If geohash is invalid for some reason, just ignore it
+                sensor['latitude'] = None
+                sensor['longitude'] = None
+        
+        # This part for getting services can remain if you use it
+        details = db.get_sensor_details(sensor['device_id'], sensor['port'])
+        sensor['services_offered'] = details.get('services_offered', []) if details else []
+    # --- END OF NEW LOGIC ---
+
+    return render_template(
+        "index.html",
+        sensors=all_sensors,
+        time=time 
+    )
 
 @app.route("/", methods=['GET'])
 def index_dashboard():

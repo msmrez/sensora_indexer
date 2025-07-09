@@ -16,13 +16,14 @@ def get_registry_db_connection():
         logger.exception(f"API_DB_ERROR: Could not connect to database '{config.REGISTRY_DATABASE_NAME}': {e}")
         return None
 
-def get_sensor_details(device_id: str) -> dict | None:
+def get_sensor_details(device_id: str, port: int) -> dict | None:
     """Fetches the full profile of a single sensor, including its services."""
     conn = None
     try:
         conn = get_registry_db_connection()
         cursor = conn.cursor()
         
+        # Use both device_id and port to uniquely identify the sensor
         cursor.execute("SELECT * FROM sensors WHERE device_id = ? AND port = ?", (device_id, port))
         sensor_row = cursor.fetchone()
         
@@ -31,18 +32,18 @@ def get_sensor_details(device_id: str) -> dict | None:
             
         sensor_profile = dict(sensor_row)
         
-        cursor.execute("SELECT data_type_code, price_sats FROM services WHERE device_id = ?AND port = ?", (device_id, port))
+        # Also update the services query to be specific
+        cursor.execute("SELECT data_type_code, price_sats FROM services WHERE device_id = ? AND port = ?", (device_id, port))
         service_rows = cursor.fetchall()
         sensor_profile['services_offered'] = [dict(row) for row in service_rows]
             
         return sensor_profile
     except Exception as e:
-        logger.exception(f"Error fetching details for sensor {device_id}: {e}")
+        logger.exception(f"Error fetching details for sensor {device_id}:{port}: {e}")
         return None
     finally:
         if conn:
             conn.close()
-
 
 def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, limit: int = 100, sort_by: str = 'timestamp') -> list:
     """

@@ -88,22 +88,6 @@ def index_dashboard():
         time=time 
     )
 
-@app.route("/", methods=['GET'])
-def index_dashboard():
-    """Serves the main HTML dashboard page for the registry."""
-    # Fetch sensors sorted by reputation for the dashboard
-    all_sensors = db.find_sensors(limit=50, sort_by='reputation')
-    
-    for sensor in all_sensors:
-        details = db.get_sensor_details(sensor['device_id'])
-        sensor['services_offered'] = details.get('services_offered', []) if details else []
-
-    return render_template(
-        "index.html",
-        sensors=all_sensors,
-        time=time 
-    )
-# --- API Routes ---
 
 @app.route("/api/v1/status", methods=['GET'])
 def get_api_status():

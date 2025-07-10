@@ -54,60 +54,51 @@ def parse_op_return_from_script_hex(script_hex: str) -> bytes | None:
         logger.error(f"Error parsing OP_RETURN hex '{script_hex[:30]}...': {e}")
         return None
 
+
 def parse_advertisement_payload(payload: bytes) -> dict | None:
     """
-    Parses a single raw SNSRADV1 payload into a structured dictionary.
-    This is now corrected to match the agent's creation logic.
+    Parses a raw SENSORA_ADV payload with the new JSON services format.
     """
     try:
-        # Check for the prefix at the beginning of the single payload
-        if not payload.startswith(config.ADVERTISEMENT_PREFIX):
+        if not payload.startswith(config.SENSORA_ADV_PREFIX):
             return None
 
-        offset = len(config.ADVERTISEMENT_PREFIX)
+        # Deconstruct the payload according to the new format
+        offset = len(config.SENSORA_ADV_PREFIX)
 
-        # Device ID Type (1 byte)
         device_id_type, = struct.unpack_from('>B', payload, offset); offset += 1
-        if device_id_type != 0x01: # SENSORA_DEVICE_ID_TYPE_IPV6_FULL
-            logger.warning(f"Unsupported device_id_type received: {device_id_type}")
-            return None
-        
-        # Device ID (16 bytes for IPv6)
+        if device_id_type != 0x01: return None
         ipv6_bytes = payload[offset : offset + 16]; offset += 16
         ipv6_address = str(ipaddress.IPv6Address(ipv6_bytes))
         
-        # Port (2 bytes)
         port, = struct.unpack_from('>H', payload, offset); offset += 2
 
-        # Geohash (length-prefixed)
         geohash_len, = struct.unpack_from('>B', payload, offset); offset += 1
         geohash = payload[offset : offset + geohash_len].decode('ascii'); offset += geohash_len
 
-        # Services (number-prefixed)
-        num_services, = struct.unpack_from('>B', payload, offset); offset += 1
+        # The rest of the payload up to the final 8-byte timestamp is the services JSON
+        timestamp_size = 8
+        services_json_bytes = payload[offset:-timestamp_size]
         
-        services = []
-        for _ in range(num_services):
-            data_type, = struct.unpack_from('>H', payload, offset); offset += 2
-            price_sats, = struct.unpack_from('>I', payload, offset); offset += 4
-            services.append({"data_type": data_type, "price_sats": price_sats})
-
-        # Timestamp (4 bytes, as corrected in agent's protocol)
-        timestamp, = struct.unpack_from('>Q', payload, offset)
+        try:
+            services_list = json.loads(services_json_bytes.decode('utf-8'))
+            if not isinstance(services_list, list): services_list = []
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.warning(f"Could not parse services JSON for sensor {ipv6_address}:{port}")
+            services_list = []
+        
+        # The timestamp is the last 8 bytes
+        timestamp, = struct.unpack_from('>Q', payload, -timestamp_size)
 
         return {
-            "protocol": "SNSRADV1",
+            "protocol": "SENSORA_ADV_JSON_V1", # A more descriptive protocol name
             "device_id": ipv6_address,
-            "ipv6_address": ipv6_address,
             "port": port,
             "geohash": geohash,
-            "services": services,
+            "services": services_list, # The parsed list of service dictionaries
             "timestamp": timestamp,
         }
 
-    except (struct.error, IndexError, UnicodeDecodeError) as e:
-        logger.error(f"Failed to parse SNSRADV1 payload due to structural error: {e}")
-        return None
-    except Exception as e:
-        logger.exception(f"Unexpected error parsing SNSRADV1 payload: {e}")
+    except (struct.error, IndexError) as e:
+        logger.error(f"Failed to parse advertisement payload due to structural error: {e}")
         return None

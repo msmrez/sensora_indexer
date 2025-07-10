@@ -52,15 +52,18 @@ def init_registry_db():
 
         # --- THIS IS THE CRITICAL CHANGE FOR THE SERVICES TABLE ---
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS services (
-                device_id TEXT,
-                port INTEGER, -- Added port
-                data_type_code INTEGER,
-                price_sats INTEGER,
-                PRIMARY KEY (device_id, port, data_type_code), -- New composite key
-                FOREIGN KEY (device_id, port) REFERENCES sensors (device_id, port) ON DELETE CASCADE
-            );
-        ''')
+    CREATE TABLE IF NOT EXISTS services (
+        device_id TEXT,
+        port INTEGER,
+        data_type_code INTEGER,
+        name TEXT,             -- NEW
+        description TEXT,      -- NEW
+        units TEXT,            -- NEW
+        price_sats INTEGER,
+        PRIMARY KEY (device_id, port, data_type_code),
+        FOREIGN KEY (device_id, port) REFERENCES sensors (device_id, port) ON DELETE CASCADE
+    );
+''')
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS indexer_state (
@@ -77,18 +80,19 @@ def init_registry_db():
         if conn:
             conn.close()
 
+# In database.py
 
 def upsert_sensor_advertisement(adv_data: dict):
-    """Inserts or updates a sensor's profile based on a new advertisement."""
+    """Inserts or updates a sensor's profile, including its rich service data."""
     conn = None
     try:
         conn = get_registry_db_connection()
         cursor = conn.cursor()
         
         device_id = adv_data['device_id']
-        port = adv_data['port'] # Extract port for clarity
+        port = adv_data['port']
         
-        # Upsert into the main sensors table - FULLY CORRECTED
+        # This part for the 'sensors' table remains the same
         cursor.execute('''
             INSERT INTO sensors (device_id, port, ipv6_address, geohash, last_adv_timestamp, last_adv_txid, is_online, total_advertisements)
             VALUES (?, ?, ?, ?, ?, ?, 1, 
@@ -104,27 +108,37 @@ def upsert_sensor_advertisement(adv_data: dict):
         ''', (
             device_id, port, adv_data['ipv6_address'], adv_data['geohash'],
             adv_data['timestamp'], adv_data['txid'],
-            device_id, port  # Parameters for the subquery
+            device_id, port
         ))
 
-        # Upsert services offered - FULLY CORRECTED
+        # --- THIS IS THE NEW LOGIC FOR THE 'services' TABLE ---
+        # First, clear old services for this agent to handle service changes.
+        cursor.execute("DELETE FROM services WHERE device_id = ? AND port = ?", (device_id, port))
+
+        # Then, insert the new services from the parsed JSON payload.
         for service in adv_data.get('services', []):
             cursor.execute('''
-                INSERT INTO services (device_id, port, data_type_code, price_sats)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(device_id, port, data_type_code) DO UPDATE SET
-                    price_sats = excluded.price_sats;
-            ''', (device_id, port, service['data_type'], service['price_sats']))
+                INSERT INTO services (device_id, port, data_type_code, name, description, units, price_sats)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                device_id, 
+                port, 
+                service.get('type'),
+                service.get('name'),
+                service.get('desc'),
+                ','.join(service.get('units', [])), # Store list as comma-separated string
+                service.get('price')
+            ))
+        # --- END OF NEW LOGIC ---
 
         conn.commit()
-        logger.info(f"Successfully upserted advertisement for sensor {device_id} on port {port}")
+        logger.info(f"Successfully upserted rich advertisement for sensor {device_id} on port {port}")
     except Exception as e:
         logger.exception(f"Failed to upsert sensor advertisement for {device_id} on port {port}: {e}")
     finally:
         if conn:
             conn.close()
-
-
+            
 def update_sensor_reputation(device_id: str, port: int, is_online: bool, reputation_data: dict | None):
     """Updates the online status and reputation metrics for a sensor."""
     conn = None

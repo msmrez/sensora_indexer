@@ -55,6 +55,13 @@ def search_sensors():
     
     # The find_sensors function now handles the sorting logic
     sensors = db.find_sensors(data_type=data_type, geo_prefix=geo_prefix, sort_by=sort_by)
+    for sensor in sensors:
+        # get_sensor_details fetches the complete profile, including services.
+        details = db.get_sensor_details(sensor['device_id'], sensor['port'])
+        if details:
+            sensor['services_offered'] = details.get('services_offered', [])
+        else:
+            sensor['services_offered'] = []
     return jsonify(sensors)
 
 @app.route("/", methods=['GET'])

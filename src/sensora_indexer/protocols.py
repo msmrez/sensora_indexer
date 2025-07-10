@@ -82,12 +82,15 @@ def parse_advertisement_payload(payload: bytes) -> dict | None:
         services_json_bytes = payload[offset:-timestamp_size]
         
         try:
+            # Decode the bytes to a string, then load the JSON.
             services_list = json.loads(services_json_bytes.decode('utf-8'))
-            if not isinstance(services_list, list): services_list = []
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            logger.warning(f"Could not parse services JSON for sensor {ipv6_address}:{port}")
+            if not isinstance(services_list, list):
+                # If it's not a list, something is wrong. Default to empty.
+                services_list = []
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.warning(f"Could not parse services JSON for sensor {ipv6_address}:{port}. Error: {e}")
+            logger.debug(f"Problematic JSON bytes: {services_json_bytes}")
             services_list = []
-        
         # The timestamp is the last 8 bytes
         timestamp, = struct.unpack_from('>Q', payload, -timestamp_size)
         return {

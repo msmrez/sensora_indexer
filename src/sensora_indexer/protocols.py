@@ -90,13 +90,13 @@ def parse_advertisement_payload(payload: bytes) -> dict | None:
         
         # The timestamp is the last 8 bytes
         timestamp, = struct.unpack_from('>Q', payload, -timestamp_size)
-
         return {
-            "protocol": "SENSORA_ADV_JSON_V1", # A more descriptive protocol name
+            "protocol": "SENSORA_ADV_JSON_V1",
             "device_id": ipv6_address,
+            "ipv6_address": ipv6_address, # <-- ADD THIS MISSING KEY
             "port": port,
             "geohash": geohash,
-            "services": services_list, # The parsed list of service dictionaries
+            "services": services_list,
             "timestamp": timestamp,
         }
 

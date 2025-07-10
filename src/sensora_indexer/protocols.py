@@ -4,6 +4,7 @@ import struct
 import ipaddress
 import logging
 from . import config
+import json
 
 
 logger = logging.getLogger(__name__)

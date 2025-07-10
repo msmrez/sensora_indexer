@@ -110,13 +110,14 @@ def upsert_sensor_advertisement(adv_data: dict):
             adv_data['timestamp'], adv_data['txid'],
             device_id, port
         ))
-
+        logger.info(f"Upserting services for {device_id}:{port}. Received services list: {adv_data.get('services')}")
         # --- THIS IS THE NEW LOGIC FOR THE 'services' TABLE ---
         # First, clear old services for this agent to handle service changes.
         cursor.execute("DELETE FROM services WHERE device_id = ? AND port = ?", (device_id, port))
 
         # Then, insert the new services from the parsed JSON payload.
         for service in adv_data.get('services', []):
+            logger.info(f"Processing service item: {service}")
             cursor.execute('''
                 INSERT INTO services (device_id, port, data_type_code, name, description, units, price_sats)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -138,7 +139,7 @@ def upsert_sensor_advertisement(adv_data: dict):
     finally:
         if conn:
             conn.close()
-            
+
 def update_sensor_reputation(device_id: str, port: int, is_online: bool, reputation_data: dict | None):
     """Updates the online status and reputation metrics for a sensor."""
     conn = None

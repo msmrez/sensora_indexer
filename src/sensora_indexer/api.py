@@ -112,7 +112,7 @@ def main():
     """Main entry point to run the API server."""
     logger.info("--- Starting Sensōra Registry API Server ---")
     # For production, use a proper WSGI server like Gunicorn or Waitress
-    app.run(host="::", port=8081, debug=False)
+    app.run(host="localhost", port=8081, debug=False)
 
 # This block allows running the Flask app directly
 if __name__ == "__main__":

@@ -251,9 +251,17 @@
 
             <dt>Services Offered</dt>
             <dd>
-              {% for service in sensor.services_offered %} Data Type
-              <strong class="code">{{ service.data_type_code }}</strong> at
-              <strong>{{ service.price_sats }} sats</strong><br />
+              {% for service in sensor.services_offered %}
+              <div>
+                <strong>{{ service.name | default('Unnamed Service') }}</strong>
+                (Type {{ service.data_type_code }})
+                <div style="font-size: 0.9em; color: #6c757d">
+                  <em>{{ service.description | default('No description.') }}</em
+                  ><br />
+                  Price: <strong>{{ service.price_sats }} sats</strong> | Units:
+                  {{ service.units }}
+                </div>
+              </div>
               {% else %} No services listed in last advertisement. {% endfor %}
             </dd>
 

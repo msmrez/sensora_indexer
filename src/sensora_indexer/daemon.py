@@ -139,7 +139,8 @@ def heartbeat_worker():
                     response = requests.get(url, timeout=5)
                     response.raise_for_status()
                     data = response.json()
-                    
+                    logger.info(f"Received status from {device_id}:{port}: {data}")
+
                     if data.get('status') == 'online':
                         # Agent is online, pass its reputation data to the DB function
                         database.update_sensor_reputation(device_id, port, True, data.get('reputation'))

@@ -33,7 +33,11 @@ def get_sensor_details(device_id: str, port: int) -> dict | None:
         sensor_profile = dict(sensor_row)
         
         # Also update the services query to be specific
-        cursor.execute("SELECT data_type_code, price_sats FROM services WHERE device_id = ? AND port = ?", (device_id, port))
+        cursor.execute("""
+            SELECT data_type_code, name, description, units, price_sats 
+            FROM services 
+            WHERE device_id = ? AND port = ?
+        """, (device_id, port))
         service_rows = cursor.fetchall()
         sensor_profile['services_offered'] = [dict(row) for row in service_rows]
             

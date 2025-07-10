@@ -20,7 +20,7 @@ SENSORA_ADV_PREFIX = b'SENSORA_ADV'
 
 # --- DAEMON SETTINGS ---
 # How far back to check for missed blocks on startup
-BACKFILL_BLOCK_COUNT = 144 # e.g., about 1 day worth of blocks
+BACKFILL_BLOCK_COUNT = 15 # e.g., about 1 day worth of blocks
 REWIND_ON_STARTUP = 15
 # When scanning a block, check any untagged transaction smaller than this size (in bytes)
 # just in case its 'op_return' tag was missed by the API. Our SNSRADV1 tx is ~255 bytes.

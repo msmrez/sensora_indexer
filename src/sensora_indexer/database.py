@@ -77,10 +77,10 @@ def init_registry_db():
             CREATE TABLE IF NOT EXISTS network_stats (
                 stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp INTEGER NOT NULL UNIQUE,
-                online_agents INTEGER NOT NULL,
-                total_agents INTEGER NOT NULL,
-                new_proofs_in_period INTEGER NOT NULL,
-                new_advs_in_period INTEGER NOT NULL
+                online_agents INTEGER,
+                total_agents INTEGER,
+                new_proofs_since_last INTEGER,  -- This was the missing column
+                service_distribution TEXT
             );
         ''')
         cursor.execute('''

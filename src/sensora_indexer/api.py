@@ -57,12 +57,12 @@ def search_sensors():
     # The find_sensors function now handles the sorting logic
     sensors = db.find_sensors(data_type=data_type, geo_prefix=geo_prefix, sort_by=sort_by)
     for sensor in sensors:
-        # get_sensor_details fetches the complete profile, including services.
         details = db.get_sensor_details(sensor['device_id'], sensor['port'])
         if details:
             sensor['services_offered'] = details.get('services_offered', [])
         else:
-            sensor['services_offered'] = []
+            sensor['services_offered'] = [] 
+
     return jsonify(sensors)
 
 @app.route("/", methods=['GET'])
@@ -104,9 +104,20 @@ def get_api_status():
 
 @app.route("/api/v1/sensors", methods=['GET'])
 def list_all_sensors():
-    """Lists all recently active and online sensors."""
-    sensors = db.find_sensors()
+    """Lists all recently active sensors with full service details."""
+    sensors = db.find_sensors() # Gets all sensors
+    
+    # Apply the same logic here to ensure this endpoint is also complete
+    for sensor in sensors:
+        details = db.get_sensor_details(sensor['device_id'], sensor['port'])
+        if details:
+            sensor['services_offered'] = details.get('services_offered', [])
+        else:
+            sensor['services_offered'] = []
+            
     return jsonify(sensors)
+
+
 
 @app.route("/api/v1/sensor/<string:device_id>/<int:port>", methods=['GET'])
 def get_single_sensor(device_id: str, port: int):

@@ -160,6 +160,36 @@ def heartbeat_worker():
         time.sleep(check_interval_seconds)
 
 
+
+
+
+def analytics_worker():
+    """
+    A background thread that periodically calculates and saves network statistics.
+    """
+    logger.info("Analytics stats worker thread started.")
+    # Wait a short while on startup to let the daemon populate some initial data
+    time.sleep(120) 
+
+    while True:
+        try:
+            logger.info("Starting network analytics calculation cycle...")
+            
+            # We don't need last_stat_timestamp for this version
+            current_stats = database.get_current_network_stats()
+            database.save_network_stats(current_stats)
+
+        except Exception as e:
+            logger.exception("An error occurred in the analytics_worker loop.")
+        
+        # Calculate stats once per hour
+        check_interval_seconds = 3600 
+        logger.info(f"Analytics cycle complete. Next run in {check_interval_seconds / 60:.0f} minutes.")
+        time.sleep(check_interval_seconds)
+
+
+
+
 def block_polling_loop():
     logger.info("Block polling loop started.")
     last_processed_str = database.get_indexer_state('last_processed_block_height')
@@ -251,7 +281,8 @@ if __name__ == "__main__":
 
     heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True, name="HeartbeatThread")
     heartbeat_thread.start()
-    
+    analytics_thread = threading.Thread(target=analytics_worker, daemon=True, name="AnalyticsThread")
+    analytics_thread.start()
     try:
         block_polling_loop()
     except KeyboardInterrupt:

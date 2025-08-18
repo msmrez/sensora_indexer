@@ -71,7 +71,22 @@ def init_registry_db():
                 value TEXT
             );
         ''')
-
+    logger.info("[DB_INIT] Attempting to create table network_stats...")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS network_stats (
+            stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER NOT NULL UNIQUE,
+            online_agents INTEGER NOT NULL,
+            total_agents INTEGER NOT NULL,
+            new_proofs_in_period INTEGER NOT NULL,
+            new_advs_in_period INTEGER NOT NULL
+        );
+    ''')
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_network_stats_timestamp ON network_stats (timestamp);
+    ''')
+    logger.info("[DB_INIT] CREATE TABLE network_stats statement executed.")
+    # --- END OF NEW TABLE ---
         conn.commit()
         logger.info("Database initialized successfully with the latest schema.")
     except Exception as e:
@@ -191,6 +206,7 @@ def get_indexer_state(key: str) -> str | None:
             conn.close()
 
 def set_indexer_state(key: str, value: str):
+
     """Sets a value in the state table."""
     conn = None
     try:
@@ -198,6 +214,75 @@ def set_indexer_state(key: str, value: str):
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO indexer_state (key, value) VALUES (?, ?)", (key, value))
         conn.commit()
+    finally:
+        if conn:
+            conn.close()
+
+
+
+def get_current_network_stats(last_stat_timestamp: int = 0) -> dict:
+    """
+    Calculates the current state of the network by querying the sensors table.
+    """
+    conn = get_registry_db_connection()
+    cursor = conn.cursor()
+    
+    # Get total and online agent counts
+    cursor.execute("SELECT COUNT(*) FROM sensors")
+    total_agents = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM sensors WHERE is_online = 1")
+    online_agents = cursor.fetchone()[0]
+    
+    # This is a placeholder for now, as the indexer doesn't track proofs.
+    # A more advanced version would have the indexer also watch for SENSORA_PROOF txs.
+    new_proofs_since_last = 0 
+
+    # Get the distribution of services
+    cursor.execute("""
+        SELECT s.name, COUNT(*) as count 
+        FROM services s
+        JOIN sensors sen ON s.device_id = sen.device_id AND s.port = sen.port
+        WHERE sen.is_online = 1
+        GROUP BY s.name
+        ORDER BY count DESC
+    """)
+    service_rows = cursor.fetchall()
+    service_distribution = {row['name']: row['count'] for row in service_rows}
+
+    conn.close()
+    
+    return {
+        "timestamp": int(time.time()),
+        "online_agents": online_agents,
+        "total_agents": total_agents,
+        "new_proofs_since_last": new_proofs_since_last,
+        "service_distribution": json.dumps(service_distribution) # Store as a JSON string
+    }
+
+def save_network_stats(stats: dict):
+    """
+    Saves a snapshot of network statistics to the database.
+    """
+    conn = get_registry_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO network_stats 
+            (timestamp, online_agents, total_agents, new_proofs_since_last, service_distribution)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            stats['timestamp'],
+            stats['online_agents'],
+            stats['total_agents'],
+            stats['new_proofs_since_last'],
+            stats['service_distribution']
+        ))
+        conn.commit()
+        logger.info(f"Successfully saved network stats for timestamp {stats['timestamp']}.")
+    except sqlite3.IntegrityError:
+        logger.warning("Network stats for this timestamp already exist. Skipping.")
+    except Exception as e:
+        logger.exception("Failed to save network stats.")
     finally:
         if conn:
             conn.close()

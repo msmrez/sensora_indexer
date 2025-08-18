@@ -71,21 +71,21 @@ def init_registry_db():
                 value TEXT
             );
         ''')
-    logger.info("[DB_INIT] Attempting to create table network_stats...")
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS network_stats (
-            stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp INTEGER NOT NULL UNIQUE,
-            online_agents INTEGER NOT NULL,
-            total_agents INTEGER NOT NULL,
-            new_proofs_in_period INTEGER NOT NULL,
-            new_advs_in_period INTEGER NOT NULL
-        );
-    ''')
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_network_stats_timestamp ON network_stats (timestamp);
-    ''')
-    logger.info("[DB_INIT] CREATE TABLE network_stats statement executed.")
+        logger.info("[DB_INIT] Attempting to create table network_stats...")
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS network_stats (
+                stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp INTEGER NOT NULL UNIQUE,
+                online_agents INTEGER NOT NULL,
+                total_agents INTEGER NOT NULL,
+                new_proofs_in_period INTEGER NOT NULL,
+                new_advs_in_period INTEGER NOT NULL
+            );
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_network_stats_timestamp ON network_stats (timestamp);
+        ''')
+        logger.info("[DB_INIT] CREATE TABLE network_stats statement executed.")
     # --- END OF NEW TABLE ---
         conn.commit()
         logger.info("Database initialized successfully with the latest schema.")

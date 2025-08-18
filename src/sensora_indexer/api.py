@@ -5,6 +5,7 @@ import json
 import time
 import pygeohash as pgh
 from flask import Flask, jsonify, request, abort, render_template
+from flask_cors import CORS 
 from werkzeug.exceptions import HTTPException
 
 # Import our project modules
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 # When run as a module, this should resolve correctly if templates is in the same dir as api.py's package.
 # A more robust way is to set it relative to the app's instance path.
 app = Flask(__name__, template_folder='templates')
-
+CORS(app)
 
 # --- Error Handlers ---
 @app.errorhandler(HTTPException)

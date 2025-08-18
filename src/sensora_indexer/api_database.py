@@ -3,6 +3,7 @@
 import sqlite3
 import logging
 from . import config
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -100,3 +101,60 @@ def find_sensors(data_type: int | None = None, geo_prefix: str | None = None, li
             conn.close()
             
     return sensors_found
+
+
+def get_stats_summary() -> dict:
+    """
+    Fetches the latest network statistics for the summary cards.
+    """
+    conn = get_registry_db_connection()
+    cursor = conn.cursor()
+    
+    # Get the most recent stats snapshot from our new table
+    cursor.execute("SELECT * FROM network_stats ORDER BY timestamp DESC LIMIT 1")
+    latest_stats_row = cursor.fetchone()
+    
+    # Also get a live count of online agents, which is more up-to-date
+    cursor.execute("SELECT COUNT(*) FROM sensors WHERE is_online = 1")
+    live_online_agents = cursor.fetchone()[0]
+
+    conn.close()
+
+    if not latest_stats_row:
+        return {
+            "online_agents": live_online_agents,
+            "total_agents": 0,
+            "service_distribution": {}
+        }
+
+    latest_stats = dict(latest_stats_row)
+    
+    return {
+        "online_agents": live_online_agents, # Use the live count
+        "total_agents": latest_stats.get('total_agents', 0),
+        # Decode the JSON string back into a dictionary
+        "service_distribution": json.loads(latest_stats.get('service_distribution', '{}'))
+    }
+
+def get_stats_history() -> list[dict]:
+    """
+    Fetches the last 30 days of daily network statistics for charting.
+    """
+    conn = get_registry_db_connection()
+    cursor = conn.cursor()
+    
+    # Calculate the timestamp for 30 days ago
+    thirty_days_ago = int(time.time()) - (30 * 24 * 60 * 60)
+    
+    # Select historical stats
+    cursor.execute(
+        "SELECT timestamp, online_agents, total_agents FROM network_stats WHERE timestamp >= ? ORDER BY timestamp ASC",
+        (thirty_days_ago,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+
+    

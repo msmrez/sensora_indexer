@@ -115,6 +115,24 @@ def get_single_sensor(device_id: str, port: int):
         abort(404, description=f"Sensor with device_id '{device_id}' on port '{port}' not found.")
     return jsonify(sensor_profile)
 
+
+
+@app.route("/api/v1/stats/summary", methods=['GET'])
+def get_stats_summary_route():
+    """
+    Provides a real-time summary of network statistics.
+    """
+    summary_data = db.get_stats_summary()
+    return jsonify(summary_data)
+
+@app.route("/api/v1/stats/history", methods=['GET'])
+def get_stats_history_route():
+    """
+    Provides historical network data for the last 30 days.
+    """
+    history_data = db.get_stats_history()
+    return jsonify(history_data)
+
 def main():
     """Main entry point to run the API server."""
     logger.info("--- Starting Sensōra Registry API Server ---")

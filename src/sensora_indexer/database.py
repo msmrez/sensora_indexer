@@ -5,6 +5,7 @@ import logging
 import json
 from . import config
 import os
+import time
 logger = logging.getLogger(__name__)
 
 def get_registry_db_connection():
